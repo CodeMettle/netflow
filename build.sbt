@@ -22,8 +22,7 @@ libraryDependencies ++= {
   Seq(
     "io.netty" % "netty-all" % "4.1.22.Final",
     "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
-    "com.typesafe.akka" %% "akka-actor" % "2.5.11",
-    "joda-time" % "joda-time" % "2.7"
+    "com.typesafe.akka" %% "akka-actor" % "2.5.11"
   )
 }
 

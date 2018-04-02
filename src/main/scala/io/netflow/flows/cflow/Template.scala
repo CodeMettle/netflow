@@ -2,17 +2,17 @@ package io.netflow
 package flows.cflow
 
 import java.net.InetSocketAddress
+import java.time.LocalDateTime
 import java.util.UUID
 
 import io.netflow.lib._
 import io.netflow.util.UUIDs
 import io.netty.buffer._
-import org.joda.time.DateTime
 
 import scala.util.{Failure, Try}
 
 private[netflow] abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, flowsetId: Int, timestamp: DateTime): Try[T] = Try[T] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, flowsetId: Int, timestamp: LocalDateTime): Try[T] = Try[T] {
     val templateId = buf.getUnsignedShort(0)
     if (!(templateId < 0 || templateId > 255)) // 0-255 reserved for flowset ID
       return Failure(new IllegalTemplateIdException(templateId))
@@ -55,7 +55,7 @@ private[netflow] abstract class TemplateMeta[T <: Template](implicit m: Manifest
     this(sender, templateId, fpId, timestamp, map)
   }
 
-  def apply(sender: InetSocketAddress, id: Int, fpId: UUID, timestamp: DateTime, map: Map[String, Int]): T
+  def apply(sender: InetSocketAddress, id: Int, fpId: UUID, timestamp: LocalDateTime, map: Map[String, Int]): T
 }
 
 private[netflow] trait Template extends Flow[Template] {
@@ -129,13 +129,13 @@ private[netflow] trait Template extends Flow[Template] {
 */
 }
 
-private[netflow] case class NetFlowV9Template(number: Int, sender: InetSocketAddress, packet: UUID, last: DateTime, map: Map[String, Int]) extends Template {
+private[netflow] case class NetFlowV9Template(number: Int, sender: InetSocketAddress, packet: UUID, last: LocalDateTime, map: Map[String, Int]) extends Template {
   val versionNumber = 9
   lazy val id = UUIDs.timeBased()
 }
 
 private[netflow] object NetFlowV9Template extends TemplateMeta[NetFlowV9Template] {
-  def apply(sender: InetSocketAddress, id: Int, packet: UUID, timestamp: DateTime, map: Map[String, Int]) =
+  def apply(sender: InetSocketAddress, id: Int, packet: UUID, timestamp: LocalDateTime, map: Map[String, Int]) =
     NetFlowV9Template(id, sender, packet, timestamp, map)
 
 /*

@@ -1,7 +1,6 @@
 package io.netflow.lib
 
 import java.net.InetAddress
+import java.time.LocalDateTime
 
-import org.joda.time.DateTime
-
-case class BadDatagram(date: DateTime, sender: InetAddress)
+case class BadDatagram(date: LocalDateTime, sender: InetAddress)

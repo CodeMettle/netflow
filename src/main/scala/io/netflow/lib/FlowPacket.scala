@@ -1,10 +1,10 @@
 package io.netflow.lib
 
 import java.net.{InetAddress, InetSocketAddress}
+import java.time.{LocalDateTime, ZoneId}
 import java.util.UUID
 
 import io.netty.buffer.ByteBuf
-import org.joda.time.DateTime
 
 trait Flow[T] {
   def id: UUID
@@ -27,7 +27,7 @@ trait FlowPacket {
   def sender: InetSocketAddress
   def senderIP = sender.getAddress.getHostAddress
   def senderPort = sender.getPort
-  def timestamp: DateTime
+  def timestamp: LocalDateTime
   def count: Int
   def flows: List[Flow[_]]
 //  def persist(): Unit
@@ -51,9 +51,10 @@ trait NetFlowData[T] extends Flow[T] {
   def proto: Int
   def tos: Int
   def tcpflags: Int
-  def start: Option[DateTime]
-  def stop: Option[DateTime]
-  def duration: Option[Long] = for { sto <- stop; sta <- start } yield sto.getMillis - sta.getMillis
+  def start: Option[LocalDateTime]
+  def stop: Option[LocalDateTime]
+  def duration: Option[Long] =
+    for { sto <- stop; sta <- start } yield sto.atZone(ZoneId.systemDefault()).toInstant.toEpochMilli - sta.atZone(ZoneId.systemDefault()).toInstant.toEpochMilli
 
   private lazy val nextHopIP = nextHop.map(_.getHostAddress)
 
@@ -72,8 +73,8 @@ trait NetFlowData[T] extends Flow[T] {
       ("tos" -> tos) ~
       ("pkts" -> pkts) ~
       ("bytes" -> bytes) ~
-      ("start" -> start.map(_.toString(ISODateTimeFormat.dateTime()))) ~
-      ("stop" -> stop.map(_.toString(ISODateTimeFormat.dateTime()))) ~
+      ("start" -> start.map(_.toString(ISOLocalDateTimeFormat.dateTime()))) ~
+      ("stop" -> stop.map(_.toString(ISOLocalDateTimeFormat.dateTime()))) ~
       ("duration" -> duration) ~
       ("tcpFlags" -> tcpflags) ~ jsonExtra
   }

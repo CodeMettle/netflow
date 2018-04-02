@@ -2,10 +2,10 @@ package io.netflow
 package actors
 
 import java.net.InetSocketAddress
+import java.time.LocalDateTime
 
 import io.netflow.actors.FlowManager.FlowManagerActor
 import io.netflow.lib._
-import org.joda.time.DateTime
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, Props}
 
@@ -45,6 +45,6 @@ private[netflow] class FlowManager(val actor: ActorRef) {
           (props: Props = FlowManagerActor.props(netFlowReceiver), name: String = "flowManager") =
     this(arf.actorOf(props, name))
 
-  def bad(sender: InetSocketAddress): Unit = actor ! BadDatagram(DateTime.now, sender.getAddress)
+  def bad(sender: InetSocketAddress): Unit = actor ! BadDatagram(LocalDateTime.now, sender.getAddress)
   def save(sender: InetSocketAddress, flowPacket: FlowPacket): Unit = actor ! SaveJob(sender, flowPacket)
 }

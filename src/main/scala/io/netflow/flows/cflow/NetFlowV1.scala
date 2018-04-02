@@ -1,12 +1,12 @@
 package io.netflow.flows.cflow
 
 import java.net.{InetAddress, InetSocketAddress}
+import java.time.{Duration, Instant, LocalDateTime, ZoneId}
 import java.util.UUID
 
 import io.netflow.lib._
 import io.netflow.util.UUIDs
 import io.netty.buffer._
-import org.joda.time.DateTime
 
 import scala.util.{Failure, Try}
 
@@ -47,8 +47,9 @@ object NetFlowV1Packet {
       return Failure(new CorruptFlowPacketException)
 
     val uptime = buf.getUnsignedInteger(4, 4)
-    val timestamp = new DateTime(buf.getUnsignedInteger(8, 4) * 1000)
-    val id = UUIDs.startOf(timestamp.getMillis)
+    val epochTimestamp = buf.getUnsignedInteger(8, 4) * 1000
+    val timestamp = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochTimestamp), ZoneId.systemDefault())
+    val id = UUIDs.startOf(epochTimestamp)
 
     val flows: List[NetFlowV1] = (0 to count - 1).toList.flatMap { i =>
       apply(sender, buf.slice(headerSize + (i * flowSize), flowSize), id, uptime, timestamp)
@@ -63,9 +64,9 @@ object NetFlowV1Packet {
    * @param buf Netty ByteBuf Slice containing the UDP Packet
    * @param fpId FlowPacket-UUID this Flow arrived on
    * @param uptime Millis since UNIX Epoch when the exporting device/sender booted
-   * @param timestamp DateTime when this flow was exported
+   * @param timestamp LocalDateTime when this flow was exported
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime): Option[NetFlowV1] =
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: LocalDateTime): Option[NetFlowV1] =
     Try[NetFlowV1] {
       NetFlowV1(UUIDs.timeBased(), sender, buf.readableBytes(), uptime, timestamp,
         buf.getUnsignedInteger(32, 2).toInt, // srcPort
@@ -76,8 +77,8 @@ object NetFlowV1Packet {
         buf.getUnsignedByte(38).toInt, // proto
         buf.getUnsignedByte(39).toInt, // tos
         buf.getUnsignedByte(40).toInt, // tcpflags
-        Some(buf.getUnsignedInteger(24, 4)).filter(_ != 0).map(x => timestamp.minus(uptime - x)), // start
-        Some(buf.getUnsignedInteger(28, 4)).filter(_ != 0).map(x => timestamp.minus(uptime - x)), // stop
+        Some(buf.getUnsignedInteger(24, 4)).filter(_ != 0).map(x => timestamp.minus(Duration.ofMillis(uptime - x))), // start
+        Some(buf.getUnsignedInteger(28, 4)).filter(_ != 0).map(x => timestamp.minus(Duration.ofMillis(uptime - x))), // stop
         buf.getInetAddress(0, 4), // srcAddress
         buf.getInetAddress(4, 4), // dstAddress
         Option(buf.getInetAddress(8, 4)).filter(_.getHostAddress != "0.0.0.0"), // nextHop
@@ -97,17 +98,17 @@ object NetFlowV1Packet {
 */
 }
 
-case class NetFlowV1Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+case class NetFlowV1Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: LocalDateTime,
                            flows: List[NetFlowV1]) extends FlowPacket {
   def version = "NetFlowV1 Packet"
   def count = flows.length
 //  def persist(): Unit = NetFlowV1Packet.persist(this)
 }
 
-case class NetFlowV1(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+case class NetFlowV1(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: LocalDateTime,
                      srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
                      pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
-                     start: Option[DateTime], stop: Option[DateTime],
+                     start: Option[LocalDateTime], stop: Option[LocalDateTime],
                      srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                      snmpInput: Int, snmpOutput: Int, packet: UUID) extends NetFlowData[NetFlowV1] {
   def version = "NetFlowV1"

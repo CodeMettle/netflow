@@ -1,12 +1,12 @@
 package io.netflow.flows.cflow
 
 import java.net.{InetAddress, InetSocketAddress}
+import java.time.{Duration, Instant, LocalDateTime, ZoneId}
 import java.util.UUID
 
 import io.netflow.lib._
 import io.netflow.util.UUIDs
 import io.netty.buffer._
-import org.joda.time.DateTime
 
 import akka.actor.ActorSystem
 import scala.util.{Failure, Try}
@@ -57,8 +57,9 @@ object NetFlowV6Packet {
       return Failure(new CorruptFlowPacketException)
 
     val uptime = buf.getUnsignedInteger(4, 4)
-    val timestamp = new DateTime(buf.getUnsignedInteger(8, 4) * 1000)
-    val id = UUIDs.startOf(timestamp.getMillis)
+    val epochTimestamp = buf.getUnsignedInteger(8, 4) * 1000
+    val timestamp = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochTimestamp), ZoneId.systemDefault())
+    val id = UUIDs.startOf(epochTimestamp)
     val flowSequence = buf.getUnsignedInteger(16, 4)
     val engineType = buf.getUnsignedInteger(20, 1).toInt
     val engineId = buf.getUnsignedInteger(21, 1).toInt
@@ -81,10 +82,10 @@ object NetFlowV6Packet {
    * @param buf Netty ByteBuf Slice containing the UDP Packet
    * @param fpId FlowPacket-UUID this Flow arrived on
    * @param uptime Millis since UNIX Epoch when the exporting device/sender booted
-   * @param timestamp DateTime when this flow was exported
+   * @param timestamp LocalDateTime when this flow was exported
    * @param samplingInterval Interval samples are sent
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime, samplingInterval: Int)(implicit system: ActorSystem): Option[NetFlowV6] =
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: LocalDateTime, samplingInterval: Int)(implicit system: ActorSystem): Option[NetFlowV6] =
     Try[NetFlowV6] {
       val sampling = NodeConfig.values.netflow.calculateSamples
       val pkts = buf.getUnsignedInteger(16, 4)
@@ -99,8 +100,8 @@ object NetFlowV6Packet {
         buf.getUnsignedByte(38).toInt, // proto
         buf.getUnsignedByte(39).toInt, // tos
         buf.getUnsignedByte(37).toInt, // tcpflags
-        Some(buf.getUnsignedInteger(24, 4)).filter(_ != 0).map(x => timestamp.minus(uptime - x)), // start
-        Some(buf.getUnsignedInteger(28, 4)).filter(_ != 0).map(x => timestamp.minus(uptime - x)), // stop
+        Some(buf.getUnsignedInteger(24, 4)).filter(_ != 0).map(x => timestamp.minus(Duration.ofMillis(uptime - x))), // start
+        Some(buf.getUnsignedInteger(28, 4)).filter(_ != 0).map(x => timestamp.minus(Duration.ofMillis(uptime - x))), // stop
         buf.getInetAddress(0, 4), // srcAddress
         buf.getInetAddress(4, 4), // dstAddress
         Option(buf.getInetAddress(8, 4)).filter(_.getHostAddress != "0.0.0.0"), // nextHop
@@ -122,7 +123,7 @@ object NetFlowV6Packet {
 */
 }
 
-case class NetFlowV6Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+case class NetFlowV6Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: LocalDateTime,
                            flows: List[NetFlowV6],
                            flowSequence: Long, engineType: Int, engineId: Int,
                            samplingInterval: Int, samplingMode: Int) extends FlowPacket {
@@ -132,10 +133,10 @@ case class NetFlowV6Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
 //  def persist() = NetFlowV6Packet.persist(this)
 }
 
-case class NetFlowV6(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
+case class NetFlowV6(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: LocalDateTime,
                      srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
                      pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
-                     start: Option[DateTime], stop: Option[DateTime],
+                     start: Option[LocalDateTime], stop: Option[LocalDateTime],
                      srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                      snmpInput: Int, snmpOutput: Int, srcMask: Int, dstMask: Int, packet: UUID)
   extends NetFlowData[NetFlowV6] {

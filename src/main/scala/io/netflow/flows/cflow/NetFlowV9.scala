@@ -2,13 +2,13 @@ package io.netflow
 package flows.cflow
 
 import java.net.{InetAddress, InetSocketAddress}
+import java.time.{Duration, Instant, LocalDateTime, ZoneId}
 import java.util.UUID
 
 import io.netflow.flows.cflow.TemplateFields._
 import io.netflow.lib._
 import io.netflow.util.UUIDs
 import io.netty.buffer._
-import org.joda.time.DateTime
 
 import akka.actor.ActorSystem
 import scala.util.{Failure, Success, Try}
@@ -61,8 +61,9 @@ object NetFlowV9Packet extends Logger {
 
     val count = buf.getUnsignedInteger(2, 2).toInt
     val uptime = buf.getUnsignedInteger(4, 4)
-    val timestamp = new DateTime(buf.getUnsignedInteger(8, 4) * 1000)
-    val id = UUIDs.startOf(timestamp.getMillis)
+    val epochTimestamp = buf.getUnsignedInteger(8, 4) * 1000
+    val timestamp = LocalDateTime.ofInstant(Instant.ofEpochMilli(epochTimestamp), ZoneId.systemDefault())
+    val id = UUIDs.startOf(epochTimestamp)
     val flowSequence = buf.getUnsignedInteger(12, 4)
     val sourceId = buf.getUnsignedInteger(16, 4)
 
@@ -156,10 +157,10 @@ object NetFlowV9Packet extends Logger {
    * @param buf Netty ByteBuf containing the UDP Packet
    * @param fpId FlowPacket-UUID this Flow arrived in
    * @param template NetFlow Template for this Flow
-   * @param timestamp DateTime when this flow was exported
+   * @param timestamp LocalDateTime when this flow was exported
    */
   def dataRecord(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9Template,
-                 uptime: Long, timestamp: DateTime)(implicit system: ActorSystem) = Try[NetFlowV9Data] {
+                 uptime: Long, timestamp: LocalDateTime)(implicit system: ActorSystem) = Try[NetFlowV9Data] {
     val srcPort = buf.getUnsignedInteger(template, L4_SRC_PORT).get.toInt
     val dstPort = buf.getUnsignedInteger(template, L4_DST_PORT).get.toInt
 
@@ -170,9 +171,9 @@ object NetFlowV9Packet extends Logger {
 
     // calculate the offset from uptime and subtract that from the timestamp
     val start = buf.getUnsignedInteger(template, FIRST_SWITCHED).filter(_ == 0).
-      map(x => timestamp.minus(uptime - x))
+      map(x => timestamp.minus(Duration.ofMillis(uptime - x)))
     val stop = buf.getUnsignedInteger(template, LAST_SWITCHED).filter(_ == 0).
-      map(x => timestamp.minus(uptime - x))
+      map(x => timestamp.minus(Duration.ofMillis(uptime - x)))
     val tcpflags = (buf.getUnsignedInteger(template, TCP_FLAGS) getOrElse -1L).toInt
 
     val srcAddress = buf.getInetAddress(template, IPV4_SRC_ADDR, IPV6_SRC_ADDR)
@@ -195,10 +196,10 @@ object NetFlowV9Packet extends Logger {
    * @param buf Netty ByteBuf containing the UDP Packet
    * @param fpId FlowPacket-UUID which this Flow arrived in
    * @param template NetFlow Template for this Flow
-   * @param timestamp DateTime when this flow was exported
+   * @param timestamp LocalDateTime when this flow was exported
    */
   def optionRecord(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9Template,
-                   uptime: Long, timestamp: DateTime) = Try[NetFlowV9Option] {
+                   uptime: Long, timestamp: LocalDateTime) = Try[NetFlowV9Option] {
     NetFlowV9Option(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
       template.getExtraFields(buf), fpId)
   }
@@ -215,7 +216,7 @@ object NetFlowV9Packet extends Logger {
 }
 
 case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long,
-                           timestamp: DateTime, flows: List[Flow[_]],
+                           timestamp: LocalDateTime, flows: List[Flow[_]],
                            flowSequence: Long, sourceId: Long) extends FlowPacket {
   def version = "NetFlowV9 Packet"
   def count = flows.length
@@ -223,9 +224,9 @@ case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
 }
 
 case class NetFlowV9Data(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
-                         timestamp: DateTime, srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
+                         timestamp: LocalDateTime, srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
                          pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
-                         start: Option[DateTime], stop: Option[DateTime],
+                         start: Option[LocalDateTime], stop: Option[LocalDateTime],
                          srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
                          extra: Map[String, Long], packet: UUID) extends NetFlowData[NetFlowV9Data] {
   def version = "NetFlowV9Data " + template
@@ -235,7 +236,7 @@ case class NetFlowV9Data(id: UUID, sender: InetSocketAddress, length: Int, templ
 }
 
 case class NetFlowV9Option(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
-                           timestamp: DateTime, extra: Map[String, Long], packet: UUID)
+                           timestamp: LocalDateTime, extra: Map[String, Long], packet: UUID)
   extends Flow[NetFlowV9Option] {
   def version = "NetFlowV9Option " + template
 //  override lazy val json = Serialization.write(extra)
