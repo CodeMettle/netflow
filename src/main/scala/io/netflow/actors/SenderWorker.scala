@@ -1,43 +1,91 @@
-package io.netflow.actors
+package io.netflow
+package actors
 
 import java.net.InetSocketAddress
-import java.util.concurrent.atomic.AtomicReference
 
-import com.twitter.conversions.time._
-import com.twitter.util.Await
+import io.netflow.actors.SenderWorker.{Init, TemplatesFetched, TemplatesSaved}
 import io.netflow.flows._
 import io.netflow.lib._
 import io.netflow.storage.FlowSender
-import io.wasted.util._
 
-private[netflow] class SenderWorker(config: FlowSender) extends Wactor with Logger {
-  override protected def loggerName = config.ip.getHostAddress
+import akka.actor.{Actor, ActorLogging, ActorSystem, Props, Status}
+import akka.pattern.pipe
+import scala.concurrent.duration._
 
-  private[actors] val senderPrefixes = new AtomicReference(config.prefixes)
+private[netflow] object SenderWorker {
+  def props(config: FlowSender, templatesDAO: NetFlowV9TemplateDAO, flowManager: FlowManager) =
+    Props(new SenderWorker(config, templatesDAO, flowManager))
 
-  cflow.NetFlowV9Template
-  private var templateCache: Map[Int, cflow.Template] = {
-    Await.result(cflow.NetFlowV9Template.findAll(config.ip), 30 seconds).map(x => x.number -> x).toMap
+  private case object Init
+  private case class TemplatesFetched(tpmls: Iterable[cflow.NetFlowV9Template])
+  private case object TemplatesSaved
+}
+
+private[netflow] class SenderWorker(config: FlowSender, templatesDAO: NetFlowV9TemplateDAO, flowManager: FlowManager)
+  extends Actor with cflow.NetFlowV9Packet.TemplateHandler with ActorLogging {
+
+  import context.dispatcher
+
+//  private[actors] val senderPrefixes = new AtomicReference(config.prefixes)
+
+  override def preStart(): Unit = {
+    super.preStart()
+
+    self ! Init
   }
-  info("Starting up with templates: " + templateCache.keys.mkString(", "))
 
-  def templates = templateCache
-  def setTemplate(tmpl: cflow.Template): Unit = templateCache += tmpl.number -> tmpl
-  private var cancellable = Shutdown.schedule()
+  private implicit def system: ActorSystem = context.system
+
+  private var templateCache = Map.empty[Int, cflow.NetFlowV9Template]
+
+//  def templates = templateCache
+//  def setTemplate(tmpl: cflow.Template): Unit = templateCache += tmpl.number -> tmpl
+//  private var cancellable = Shutdown.schedule()
 
   private def handleFlowPacket(osender: InetSocketAddress, handled: Option[FlowPacket]) = {
-    if (NodeConfig.values.storage.isDefined) handled match {
+    /*if (NodeConfig.values.storage.isDefined)*/ handled match {
       case Some(fp) =>
-        FlowManager.save(osender, fp, senderPrefixes.get.toList)
+        flowManager.save(osender, fp/*, senderPrefixes.get.toList*/)
       case _ =>
-        warn("Unable to parse FlowPacket")
-        FlowManager.bad(osender)
+//        warn("Unable to parse FlowPacket")
+        flowManager.bad(osender)
     }
   }
 
-  def receive = {
+  override def templateFor(flowsetId: Int): Option[cflow.NetFlowV9Template] = templateCache get flowsetId
+
+  override def storeTemplate(t: cflow.NetFlowV9Template): Unit = {
+    templateCache += (t.number → t)
+    templatesDAO.persistTemplates(config.ip, templateCache.values).map(_ ⇒ TemplatesSaved) pipeTo self
+  }
+
+  override def receive: Receive = init(Nil)
+
+  private def init(requestingWhenReady: List[SenderManager.GetActor]): Receive = {
+    case ga: SenderManager.GetActor ⇒ context become init(ga :: requestingWhenReady)
+
+    case Init ⇒ templatesDAO loadTemplates config.ip map TemplatesFetched pipeTo self
+
+    case Status.Failure(t) ⇒
+      log.error(t, "Error fetching existing templates for {}, retrying", config.ip)
+      context.system.scheduler.scheduleOnce(1.second, self, Init)
+
+    case TemplatesFetched(templs) ⇒
+      templateCache = templs.map(x ⇒ x.number → x).toMap
+      log.info("Starting up with templates: {}", templateCache.keys.mkString(", "))
+      requestingWhenReady.map(_.p).foreach(_.success(self))
+      context become normal
+  }
+
+  private def normal: Receive = {
+    case SenderManager.GetActor(p, _) ⇒ p.success(self)
+
+    case TemplatesSaved ⇒ log.debug("saved templates")
+
+    case Status.Failure(t) ⇒ log.error(t, "Error saving templates")
+
     case NetFlow(osender, buf) =>
-      Shutdown.avoid()
+//      Shutdown.avoid()
       val handled: Option[FlowPacket] = {
         Tryo(buf.getUnsignedShort(0)) match {
           case Some(1) => cflow.NetFlowV1Packet(osender, buf).toOption
@@ -46,44 +94,24 @@ private[netflow] class SenderWorker(config: FlowSender) extends Wactor with Logg
           case Some(7) => cflow.NetFlowV7Packet(osender, buf).toOption
           case Some(9) => cflow.NetFlowV9Packet(osender, buf, this).toOption
           case Some(10) =>
-            info("We do not handle NetFlow IPFIX yet"); None //Some(cflow.NetFlowV10Packet(sender, buf))
+            log.info("We do not handle NetFlow IPFIX yet"); None //Some(cflow.NetFlowV10Packet(sender, buf))
           case _ => None
         }
       }
       buf.release()
-      if (NodeConfig.values.netflow.persist) handled.foreach(_.persist())
+//      if (NodeConfig.values.netflow.persist) handled.foreach(_.persist())
       handleFlowPacket(osender, handled)
 
-    case SFlow(osender, buf) =>
-      Shutdown.avoid()
-      if (buf.readableBytes < 28) {
-        warn("Unable to parse FlowPacket")
-        FlowManager.bad(osender)
-      } else {
-        val handled: Option[FlowPacket] = {
-          Tryo(buf.getLong(0)) match {
-            case Some(3) =>
-              info("We do not handle sFlow v3 yet"); None // sFlow 3
-            case Some(4) =>
-              info("We do not handle sFlow v4 yet"); None // sFlow 4
-            case Some(5) =>
-              //sflow.SFlowV5Packet(sender, buf)
-              info("We do not handle sFlow v5 yet"); None // sFlow 5
-            case _ => None
-          }
-        }
-        if (NodeConfig.values.sflow.persist) handled.foreach(_.persist())
-        handleFlowPacket(osender, handled)
-      }
-      buf.release()
-
+/*
     case Shutdown =>
       info("Shutting down")
       SenderManager.removeActorFor(config.ip)
       templateCache = Map.empty
       this ! Wactor.Die
+*/
   }
 
+/*
   private case object Shutdown {
     def schedule() = scheduleOnce(Shutdown, 5.minutes)
     def avoid() {
@@ -91,4 +119,5 @@ private[netflow] class SenderWorker(config: FlowSender) extends Wactor with Logg
       cancellable = schedule()
     }
   }
+*/
 }

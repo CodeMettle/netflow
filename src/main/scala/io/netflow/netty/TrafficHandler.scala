@@ -1,4 +1,5 @@
-package io.netflow.netty
+package io.netflow
+package netty
 
 import java.net.InetSocketAddress
 
@@ -7,15 +8,22 @@ import io.netflow.lib._
 import io.netty.buffer._
 import io.netty.channel._
 import io.netty.channel.socket.DatagramPacket
-import io.wasted.util._
 
-abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket] with Logger {
+import akka.actor.{ActorRef, ActorSystem}
+import akka.event.{Logging, LoggingAdapter}
+import scala.concurrent.ExecutionContext
+
+abstract class TrafficHandler(flowManager: FlowManager, senderManager: SenderManager)
+  extends SimpleChannelInboundHandler[DatagramPacket] with Logger {
+
+  protected def log: LoggingAdapter
+  protected implicit def ec: ExecutionContext
 
   override def exceptionCaught(ctx: ChannelHandlerContext, e: Throwable) {
-    e.printStackTrace()
+    log.error(e, "Error")
   }
 
-  protected def handOff(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf): Unit
+  protected def handOff(actor: ActorRef, sender: InetSocketAddress, buf: ByteBuf): Unit
 
   override def channelRead0(ctx: ChannelHandlerContext, msg: DatagramPacket) {
     val sender = msg.sender
@@ -30,29 +38,37 @@ abstract class TrafficHandler extends SimpleChannelInboundHandler[DatagramPacket
     msg.content().retain()
 
     // Try to get an actor
-    val actor = SenderManager.findActorFor(sender.getAddress)
+    val actor = senderManager.findActorFor(sender.getAddress)
     actor onSuccess {
-      case actor: Wactor.Address => handOff(actor, sender, msg.content())
+      case actor: ActorRef => handOff(actor, sender, msg.content())
     }
     actor onFailure {
       case e: Throwable =>
         warn("Unauthorized Flow received from " + sender.getAddress.getHostAddress + ":" + sender.getPort)
-        if (NodeConfig.values.storage.isDefined) FlowManager.bad(sender)
+        /*if (NodeConfig.values.storage.isDefined)*/ flowManager.bad(sender)
 
     }
   }
 }
 
 @ChannelHandler.Sharable
-object NetFlowHandler extends TrafficHandler {
-  def handOff(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf): Unit = {
+class NetFlowHandler(flowManager: FlowManager, senderManager: SenderManager)(implicit system: ActorSystem)
+  extends TrafficHandler(flowManager, senderManager) {
+
+  override protected def log: LoggingAdapter = Logging(system, getClass)
+
+  override protected implicit def ec: ExecutionContext = system.dispatcher
+
+  def handOff(actor: ActorRef, sender: InetSocketAddress, buf: ByteBuf): Unit = {
     actor ! NetFlow(sender, buf)
   }
 }
 
+/*
 @ChannelHandler.Sharable
 object SFlowHandler extends TrafficHandler {
   def handOff(actor: Wactor.Address, sender: InetSocketAddress, buf: ByteBuf): Unit = {
     actor ! SFlow(sender, buf)
   }
 }
+*/

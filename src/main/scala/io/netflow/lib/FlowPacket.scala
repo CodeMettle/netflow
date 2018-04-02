@@ -1,13 +1,10 @@
 package io.netflow.lib
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.UUID
 
 import io.netty.buffer.ByteBuf
-import net.liftweb.json.JsonDSL._
-import net.liftweb.json._
 import org.joda.time.DateTime
-import org.joda.time.format.ISODateTimeFormat
 
 trait Flow[T] {
   def id: UUID
@@ -16,8 +13,8 @@ trait Flow[T] {
   def sender: InetSocketAddress
   def senderIP = sender.getAddress.getHostAddress
   def senderPort = sender.getPort
-  def json: String
-  def jsonExtra: JObject = JObject(Nil)
+//  def json: String
+//  def jsonExtra: JObject = JObject(Nil)
 }
 
 /**
@@ -33,7 +30,7 @@ trait FlowPacket {
   def timestamp: DateTime
   def count: Int
   def flows: List[Flow[_]]
-  def persist(): Unit
+//  def persist(): Unit
 }
 
 /**
@@ -60,6 +57,7 @@ trait NetFlowData[T] extends Flow[T] {
 
   private lazy val nextHopIP = nextHop.map(_.getHostAddress)
 
+/*
   lazy val json = Serialization.write {
     ("flowVersion" -> version) ~
       ("flowSender" -> (senderIP + ":" + senderPort)) ~
@@ -79,6 +77,7 @@ trait NetFlowData[T] extends Flow[T] {
       ("duration" -> duration) ~
       ("tcpFlags" -> tcpflags) ~ jsonExtra
   }
+*/
 
   protected def stringExtra = ""
   override def toString = "%s reported by %s:%s containing %s:%s%s -> %s -> %s:%s%s Proto %s - ToS %s - %s pkts - %s bytes %s".format(
@@ -94,9 +93,9 @@ trait NetFlowData[T] extends Flow[T] {
  */
 case class NetFlow(sender: InetSocketAddress, msg: ByteBuf)
 
-/**
+/* *
  * Wrapper class for SFlow Bytes
  * @param sender Sender Socket Address
  * @param msg Netty ByteBuf
  */
-case class SFlow(sender: InetSocketAddress, msg: ByteBuf)
+//case class SFlow(sender: InetSocketAddress, msg: ByteBuf)

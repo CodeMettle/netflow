@@ -3,22 +3,20 @@ package io.netflow
 import java.net.InetAddress
 
 import io.netty.buffer._
-import io.wasted.util._
-import net.liftweb.json._
-import org.joda.time.DateTime
 
-import scala.util.{ Failure, Success, Try }
+import scala.util.{Failure, Success, Try}
 
 package object lib {
 
   import io.netflow.flows.cflow.TemplateFields
-  implicit val wheelTimer = WheelTimer()
-  implicit val formats = net.liftweb.json.DefaultFormats + new InetPrefixSerializer + new DirectionSerializer + new DateTimeSerializer
+//  implicit val wheelTimer = WheelTimer()
+//  implicit val formats = net.liftweb.json.DefaultFormats + new InetPrefixSerializer + new DirectionSerializer + new DateTimeSerializer
 
   final val NoBackendDefined = new IllegalArgumentException("No backend is defined") with scala.util.control.NoStackTrace
 
   val defaultAddr = InetAddress.getByName("0.0.0.0")
 
+/*
   def string2prefix(str: String): Option[InetPrefix] = {
     val split = str.split("/")
     if (split.length != 2) None else for {
@@ -26,6 +24,7 @@ package object lib {
       base <- Tryo(InetAddress.getByName(split(0)))
     } yield InetPrefix(base, len)
   }
+*/
 
   implicit class RichByteBuf(val buf: ByteBuf) extends AnyVal {
     def getInetAddress(template: flows.cflow.Template, field: TemplateFields.Value): Option[InetAddress] = {
@@ -65,6 +64,7 @@ package object lib {
     }
   }
 
+/*
   class InetPrefixSerializer extends CustomSerializer[InetPrefix](format => (
     {
       case JObject(JField("prefix", JString(prefix)) :: JField("prefixLen", JInt(prefixLen)) :: Nil) =>
@@ -89,5 +89,6 @@ package object lib {
     {
       case x: DateTime => JString(format.dateFormat.format(x.toDate))
     }))
+*/
 }
 

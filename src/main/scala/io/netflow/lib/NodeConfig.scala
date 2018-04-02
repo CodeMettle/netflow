@@ -1,10 +1,13 @@
-package io.netflow.lib
+package io.netflow
+package lib
 
 import java.net.InetSocketAddress
-import java.util.UUID
+import java.util.concurrent.TimeUnit
 
-import io.wasted.util.{ Config, Logger, Tryo }
+import io.wasted.util.InetPrefix
 
+import akka.actor.ActorSystem
+import scala.collection.JavaConverters._
 import scala.concurrent.duration._
 
 private[netflow] object NodeConfig extends Logger {
@@ -12,17 +15,20 @@ private[netflow] object NodeConfig extends Logger {
   case class ServerConfig(
     cores: Int,
     statuslog: Duration,
-    storage: Option[StorageLayer.Value],
+//    storage: Option[StorageLayer.Value],
     debugStackTraces: Boolean,
-    admin: AdminConfig,
+//    admin: AdminConfig,
     netflow: NetFlowConfig,
+/*
     sflow: SFlowConfig,
     cassandra: CassandraConfig,
     redis: RedisConfig,
     elastic: ElasticSearchConfig,
     http: HttpConfig,
+*/
     tcp: TcpConfig)
 
+/*
   case class AdminConfig(
     authKey: UUID,
     signKey: UUID)
@@ -39,7 +45,6 @@ private[netflow] object NodeConfig extends Logger {
 
   case class RedisConfig(hosts: Seq[String])
   case class ElasticSearchConfig(hosts: Seq[String])
-
   case class CassandraConfig(
     hosts: Seq[String],
     keyspace: String,
@@ -51,6 +56,7 @@ private[netflow] object NodeConfig extends Logger {
     reconnectTimeout: Int,
     readTimeout: Int,
     keyspaceConfig: String)
+*/
 
   case class TcpConfig(
     sendBufferSize: Integer,
@@ -60,19 +66,58 @@ private[netflow] object NodeConfig extends Logger {
     reuseAddr: Boolean,
     soLinger: Int)
 
+/*
   case class SFlowConfig(
     listen: Seq[InetSocketAddress],
     persist: Boolean)
+*/
 
   case class NetFlowConfig(
     listen: Seq[InetSocketAddress],
-    persist: Boolean,
+//    persist: Boolean,
     calculateSamples: Boolean,
     extraFields: Boolean)
 
-  private var config: ServerConfig = load()
+  private var configs = Map.empty[ActorSystem, ServerConfig]
+  private def config(implicit system: ActorSystem): ServerConfig = {
+    configs.getOrElse(system, {
+      val conf = load
+      configs += (system → conf)
+      conf
+    })
+  }
 
-  private def load(): ServerConfig = {
+  private implicit class RichActorSystem(val system: ActorSystem) extends AnyVal {
+    private def conf = system.settings.config
+
+    def getString(path: String): Option[String] = Tryo(conf.getString(path))
+    def getString(path: String, fallback: String): String = getString(path) getOrElse fallback
+
+    def getInetAddrList(name: String): Option[Seq[InetSocketAddress]] = {
+      val valid = Tryo(conf.getStringList(name).asScala.toList) getOrElse Nil flatMap InetPrefix.stringToInetAddr
+      if (valid.nonEmpty) Some(valid) else None
+    }
+
+    def getInetAddrList(name: String, fallback: Seq[String]): Seq[InetSocketAddress] =
+      getInetAddrList(name) getOrElse fallback.flatMap(InetPrefix.stringToInetAddr)
+
+    def getBool(name: String): Option[Boolean] = Tryo(conf.getBoolean(name))
+    def getBool(name: String, fallback: Boolean): Boolean = getBool(name) getOrElse fallback
+
+    def getBytes(name: String): Option[Long] = Tryo(conf.getBytes(name).longValue())
+    def getBytes(name: String, fallback: Long): Long = getBytes(name) getOrElse fallback
+
+    def getInt(name: String): Option[Int] = Tryo(conf.getInt(name))
+    def getInt(name: String, fallback: Int): Int = getInt(name) getOrElse fallback
+
+    def getDuration(name: String): Option[Duration] = Tryo(conf.getDuration(name, TimeUnit.MILLISECONDS).millis)
+    def getDuration(name: String, fallback: Duration): Duration = getDuration(name) getOrElse fallback
+  }
+
+  private def Config(implicit system: ActorSystem) = new RichActorSystem(system)
+
+  private def load(implicit system: ActorSystem): ServerConfig = {
+/*
     val adminAuthKey = Config.getString("admin.authKey").flatMap(ak => Tryo(UUID.fromString(ak))) match {
       case Some(ak) => ak
       case _ =>
@@ -92,13 +137,15 @@ private[netflow] object NodeConfig extends Logger {
     val admin = AdminConfig(
       authKey = adminAuthKey,
       signKey = adminSignKey)
+*/
 
     val netflow = NetFlowConfig(
       listen = Config.getInetAddrList("netflow.listen", List("0.0.0.0:2055")),
-      persist = Config.getBool("netflow.persist", false),
+//      persist = Config.getBool("netflow.persist", false),
       calculateSamples = Config.getBool("netflow.calculateSamples", true),
       extraFields = Config.getBool("netflow.extraFields", true))
 
+/*
     val sflow = SFlowConfig(
       listen = Config.getInetAddrList("sflow.listen", List("0.0.0.0:6343")),
       persist = Config.getBool("sflow.persist", false))
@@ -115,7 +162,6 @@ private[netflow] object NodeConfig extends Logger {
       readTimeout = Config.getInt("cassandra.readTimeout", 60000),
       keyspaceConfig = Config.getString("cassandra.keyspaceConfig",
         "WITH replication = {'class':'SimpleStrategy', 'replication_factor':1}"))
-
     val redis = RedisConfig(
       hosts = Config.getStringList("redis.hosts", Seq("127.0.0.1:6379")))
     val elastic = ElasticSearchConfig(
@@ -130,6 +176,7 @@ private[netflow] object NodeConfig extends Logger {
       maxInitialLineLength = Config.getBytes("http.maxInitialLineLength", 8 * 1024),
       maxChunkSize = Config.getBytes("http.maxChunkSize", 512 * 1024),
       maxHeaderSize = Config.getBytes("http.maxHeaderSize", 8 * 1024))
+    */
 
     val tcp = TcpConfig(
       sendBufferSize = Config.getBytes("http.tcp.sendBufferSize", 10 * 1024 * 1024).toInt,
@@ -139,33 +186,37 @@ private[netflow] object NodeConfig extends Logger {
       reuseAddr = Config.getBool("http.tcp.reuseAddr", true),
       soLinger = Config.getInt("http.tcp.soLinger", 0))
 
-    val storage = Config.getString("storage").flatMap(n => Tryo(StorageLayer.withName(n)))
+//    val storage = Config.getString("storage").flatMap(n => Tryo(StorageLayer.withName(n)))
 
     val server = ServerConfig(
       cores = Config.getInt("server.cores").getOrElse(Runtime.getRuntime.availableProcessors()),
       statuslog = Config.getDuration("server.statuslog", 10 seconds),
-      storage = storage,
+//      storage = storage,
       debugStackTraces = Config.getBool("server.debugStackTraces", true),
-      admin = admin,
+//      admin = admin,
       netflow = netflow,
+/*
       sflow = sflow,
       cassandra = cassandra,
       redis = redis,
       elastic = elastic,
-      tcp = tcp,
-      http = http)
-    info("Using %s of %s available cores", server.cores, Runtime.getRuntime.availableProcessors())
+*/
+      tcp = tcp/*,
+      http = http*/)
+    info(s"Using ${server.cores} of ${Runtime.getRuntime.availableProcessors()} available cores")
+/*
     storage.map { layer =>
       info("You are using the %s storage layer", layer)
     }.getOrElse {
       warn("You are running *WITHOUT* a storage backend, not doing anything!")
     }
+*/
     server
   }
 
-  def reload(): Unit = synchronized(config = load())
+//  def reload(): Unit = synchronized(config = load())
 
-  def values = config
+  def values(implicit system: ActorSystem): ServerConfig = config
 
 }
 

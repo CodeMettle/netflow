@@ -1,53 +1,52 @@
-package io.netflow.actors
+package io.netflow
+package actors
 
 import java.net.InetAddress
 
-import com.twitter.conversions.time._
-import com.twitter.util.{ Await, Future, Promise }
+import io.netflow.actors.SenderManager.{GetActor, SenderManagerActor}
 import io.netflow.storage.FlowSender
-import io.wasted.util._
 
-import scala.collection.JavaConverters._
+import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, Props}
+import scala.concurrent.{Future, Promise}
 
-private[netflow] object SenderManager extends Wactor {
-  info("Starting up")
-  private val senderActors = LruMap[InetAddress, Wactor.Address](5000)
+private[netflow] object SenderManager {
+  private[actors] case class GetActor(p: Promise[ActorRef], addr: InetAddress)
 
-  private case class GetActor(p: Promise[Wactor.Address], addr: InetAddress)
-  private case class KillActor(addr: InetAddress)
-
-  def findActorFor(sender: InetAddress): Future[Wactor.Address] = {
-    val p = Promise[Wactor.Address]()
-    this ! GetActor(p, sender)
-    p
+  object SenderManagerActor {
+    def props(templatesDAO: NetFlowV9TemplateDAO, flowManager: FlowManager) =
+      Props(new SenderManagerActor(templatesDAO, flowManager))
   }
 
-  def removeActorFor(sender: InetAddress) {
-    this ! KillActor(sender)
-  }
+  class SenderManagerActor(templatesDAO: NetFlowV9TemplateDAO, flowManager: FlowManager)
+    extends Actor with ActorLogging {
+    log info "Starting up"
 
-  def receive = {
-    case KillActor(sender: InetAddress) =>
-      senderActors.get(sender).foreach(_ ! Wactor.Die)
-      senderActors.remove(sender)
+    override def receive: Receive = normal(Map.empty)
 
-    case GetActor(p: Promise[Wactor.Address], sender: InetAddress) =>
-      senderActors.get(sender).map(p.setValue) getOrElse {
-        val dbsender = FlowSender.find(sender)
-        try {
-          val result = Await.result(dbsender, 2.seconds)
-          val actor = new SenderWorker(result)
-          senderActors.put(sender, actor)
-          p.setValue(actor)
-        } catch {
-          case t: Throwable => p.setException(t)
+    private def normal(senderActors: Map[InetAddress, ActorRef]): Receive = {
+      case ga@GetActor(_, forAddr) ⇒
+        senderActors get forAddr match {
+          case Some(act) ⇒ act ! ga
+
+          case None ⇒
+            val conf = FlowSender(forAddr)
+            val act = context.actorOf(
+              SenderWorker.props(conf, templatesDAO, flowManager), validActorName(s"senderWorker-$forAddr"))
+            act ! ga
+            context become normal(senderActors + (forAddr → act))
         }
-      }
+    }
   }
+}
 
-  def stop() {
-    senderActors.cache.asMap.entrySet.asScala.foreach { _.getValue.value ! Wactor.Die }
-    senderActors.cache.invalidateAll()
-    info("Stopped")
+private[netflow] class SenderManager(val actor: ActorRef) {
+  def this(arf: ActorRefFactory, templatesDAO: NetFlowV9TemplateDAO, flowManager: FlowManager)
+          (props: Props = SenderManagerActor.props(templatesDAO, flowManager), name: String = "senderManager") =
+    this(arf.actorOf(props, name))
+
+  def findActorFor(sender: InetAddress): Future[ActorRef] = {
+    val p = Promise[ActorRef]()
+    actor ! GetActor(p, sender)
+    p.future
   }
 }

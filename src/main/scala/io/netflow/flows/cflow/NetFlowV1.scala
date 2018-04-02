@@ -1,18 +1,14 @@
 package io.netflow.flows.cflow
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.UUID
 
-import com.datastax.driver.core.utils.UUIDs
-import com.twitter.util.Future
 import io.netflow.lib._
-import io.netflow.storage
+import io.netflow.util.UUIDs
 import io.netty.buffer._
-import net.liftweb.json.JObject
-import net.liftweb.json.JsonDSL._
 import org.joda.time.DateTime
 
-import scala.util.{ Failure, Try }
+import scala.util.{Failure, Try}
 
 /**
  * NetFlow Version 1
@@ -90,6 +86,7 @@ object NetFlowV1Packet {
         fpId)
     }.toOption
 
+/*
   private def doLayer[T](f: FlowPacketMeta[NetFlowV1Packet] => Future[T]): Future[T] = NodeConfig.values.storage match {
     case Some(StorageLayer.Cassandra) => f(storage.cassandra.NetFlowV1Packet)
     case Some(StorageLayer.Redis) => f(storage.redis.NetFlowV1Packet)
@@ -97,13 +94,14 @@ object NetFlowV1Packet {
   }
 
   def persist(fp: NetFlowV1Packet): Unit = doLayer(l => Future.value(l.persist(fp)))
+*/
 }
 
 case class NetFlowV1Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
                            flows: List[NetFlowV1]) extends FlowPacket {
   def version = "NetFlowV1 Packet"
   def count = flows.length
-  def persist(): Unit = NetFlowV1Packet.persist(this)
+//  def persist(): Unit = NetFlowV1Packet.persist(this)
 }
 
 case class NetFlowV1(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
@@ -114,5 +112,5 @@ case class NetFlowV1(id: UUID, sender: InetSocketAddress, length: Int, uptime: L
                      snmpInput: Int, snmpOutput: Int, packet: UUID) extends NetFlowData[NetFlowV1] {
   def version = "NetFlowV1"
 
-  override lazy val jsonExtra: JObject = "snmp" -> ("input" -> snmpInput) ~ ("output" -> snmpOutput)
+//  override lazy val jsonExtra: JObject = "snmp" -> ("input" -> snmpInput) ~ ("output" -> snmpOutput)
 }

@@ -1,55 +1,54 @@
+/*
 import scalariform.formatter.preferences._
+*/
 
-name := "netflow"
+name := "netflow-lib"
 
 organization := "io.wasted"
 
 version := scala.io.Source.fromFile("version").mkString.trim
 
-scalaVersion := "2.11.6"
+scalaVersion := "2.12.5" /*"2.11.6"*/
 
-scalacOptions ++= Seq("-unchecked", "-deprecation", "-Yinline-warnings", "-Xcheckinit", "-encoding", "utf8", "-feature")
+scalacOptions ++= Seq("-unchecked", "-deprecation", "-Xcheckinit", "-encoding", "utf8", "-feature")
 
 scalacOptions ++= Seq("-language:higherKinds", "-language:postfixOps", "-language:implicitConversions", "-language:reflectiveCalls", "-language:existentials")
 
-javacOptions ++= Seq("-target", "1.7", "-source", "1.7", "-Xlint:deprecation")
+javacOptions ++= Seq(/*"-target", "1.7", "-source", "1.7", */"-Xlint:deprecation")
 
-mainClass in assembly := Some("io.netflow.Node")
+//mainClass in assembly := Some("io.netflow.Node")
 
 libraryDependencies ++= {
-  val wastedVersion = "0.9.5"
-  val liftVersion = "2.6.2"
-  val phantomVersion = "1.5.0"
   Seq(
-    "net.liftweb" %% "lift-json" % liftVersion,
-    "io.wasted" %% "wasted-util" % wastedVersion,
-    "com.twitter" %% "finagle-redis" % "6.25.0",
-    "com.websudos"  %% "phantom-dsl" % phantomVersion,
-    "org.xerial.snappy" % "snappy-java" % "1.1.1.3",
-    "joda-time" % "joda-time" % "2.7",
-		"org.codehaus.janino" % "janino" % "2.6.1"
+    "io.netty" % "netty-all" % "4.1.22.Final",
+    "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
+    "com.typesafe.akka" %% "akka-actor" % "2.5.11",
+    "joda-time" % "joda-time" % "2.7"
   )
 }
 
-publishTo := Some("wasted.io/repo" at "http://repo.wasted.io/mvn")
+publishMavenStyle := true
+credentials += {
+  def file = "credentials-" + (if (isSnapshot.value) "snapshots" else "internal")
 
-scalariformSettings
+  Credentials(Path.userHome / ".m2" / file)
+}
+publishTo := {
+  def path = "/repository/" + (if (isSnapshot.value) "snapshots" else "internal")
 
-ScalariformKeys.preferences := FormattingPreferences().setPreference(AlignParameters, true)
-
-buildInfoSettings
+  Some("CodeMettle Maven" at s"http://maven.codemettle.com$path")
+}
 
 buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion) ++ Seq[BuildInfoKey](
   "commit" -> ("git rev-parse HEAD"!!).trim
 )
 
-sourceGenerators in Compile <+= buildInfo
-
 buildInfoPackage := "io.netflow.lib"
 
-addArtifact(Artifact("netflow", "server"), assembly)
+enablePlugins(BuildInfoPlugin)
 
-net.virtualvoid.sbt.graph.Plugin.graphSettings
+/*
+addArtifact(Artifact("netflow", "server"), assembly)
 
 resolvers ++= Seq(
   "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository",
@@ -60,4 +59,4 @@ resolvers ++= Seq(
   "Typesafe Ivy Repo" at "http://repo.typesafe.com/typesafe/ivy-releases",
   "Java.net Maven2 Repository" at "http://download.java.net/maven/2/"
 )
-
+*/

@@ -1,17 +1,15 @@
 package io.netflow.flows.cflow
 
-import java.net.{ InetAddress, InetSocketAddress }
+import java.net.{InetAddress, InetSocketAddress}
 import java.util.UUID
 
-import com.datastax.driver.core.utils.UUIDs
-import com.twitter.util.Future
 import io.netflow.lib._
-import io.netflow.storage
+import io.netflow.util.UUIDs
 import io.netty.buffer._
-import net.liftweb.json.JsonDSL._
 import org.joda.time.DateTime
 
-import scala.util.{ Failure, Try }
+import akka.actor.ActorSystem
+import scala.util.{Failure, Try}
 
 /**
  * NetFlow Version 5
@@ -50,7 +48,7 @@ object NetFlowV5Packet {
    * @param sender The sender's InetSocketAddress
    * @param buf Netty ByteBuf containing the UDP Packet
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf): Try[NetFlowV5Packet] = Try[NetFlowV5Packet] {
+  def apply(sender: InetSocketAddress, buf: ByteBuf)(implicit system: ActorSystem): Try[NetFlowV5Packet] = Try[NetFlowV5Packet] {
     val version = buf.getUnsignedInteger(0, 2).toInt
     if (version != 5) return Failure(new InvalidFlowVersionException(version))
 
@@ -85,7 +83,7 @@ object NetFlowV5Packet {
    * @param timestamp DateTime when this flow was exported
    * @param samplingInterval Interval samples are sent
    */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime, samplingInterval: Int): Option[NetFlowV5] =
+  def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, uptime: Long, timestamp: DateTime, samplingInterval: Int)(implicit system: ActorSystem): Option[NetFlowV5] =
     Try[NetFlowV5] {
       val sampling = NodeConfig.values.netflow.calculateSamples
       val pkts = buf.getUnsignedInteger(16, 4)
@@ -112,6 +110,7 @@ object NetFlowV5Packet {
         fpId)
     }.toOption
 
+/*
   private def doLayer[T](f: FlowPacketMeta[NetFlowV5Packet] => Future[T]): Future[T] = NodeConfig.values.storage match {
     case Some(StorageLayer.Cassandra) => f(storage.cassandra.NetFlowV5Packet)
     case Some(StorageLayer.Redis) => f(storage.redis.NetFlowV5Packet)
@@ -119,6 +118,7 @@ object NetFlowV5Packet {
   }
 
   def persist(fp: NetFlowV5Packet): Unit = doLayer(l => Future.value(l.persist(fp)))
+*/
 }
 
 case class NetFlowV5Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime, flows: List[NetFlowV5],
@@ -126,7 +126,7 @@ case class NetFlowV5Packet(id: UUID, sender: InetSocketAddress, length: Int, upt
   def version = "NetFlowV5 Packet"
   def count = flows.length
 
-  def persist() = NetFlowV5Packet.persist(this)
+//  def persist() = NetFlowV5Packet.persist(this)
 }
 
 case class NetFlowV5(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long, timestamp: DateTime,
@@ -137,6 +137,8 @@ case class NetFlowV5(id: UUID, sender: InetSocketAddress, length: Int, uptime: L
                      snmpInput: Int, snmpOutput: Int, srcMask: Int, dstMask: Int, packet: UUID) extends NetFlowData[NetFlowV5] {
   def version = "NetFlowV5"
 
+/*
   override lazy val jsonExtra = ("srcMask" -> srcMask) ~ ("dstMask" -> dstMask) ~
     ("snmp" -> ("input" -> snmpInput) ~ ("output" -> snmpOutput))
+*/
 }

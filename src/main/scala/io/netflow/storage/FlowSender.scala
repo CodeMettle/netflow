@@ -2,16 +2,21 @@ package io.netflow.storage
 
 import java.net.InetAddress
 
+/*
 import com.twitter.util.Future
 import io.netflow.lib._
 import io.wasted.util.InetPrefix
 import org.joda.time.DateTime
+*/
 
-private[netflow] case class FlowSender(ip: InetAddress, last: Option[DateTime], prefixes: Set[InetPrefix]) {
+private[netflow] case class FlowSender(ip: InetAddress/*, last: Option[DateTime], prefixes: Set[InetPrefix]*/) {
+/*
   def save() = FlowSender.save(this)
   def delete() = FlowSender.delete(ip)
+*/
 }
 
+/*
 private[storage] case class FlowSenderCount(ip: InetAddress, flows: Long, dgrams: Long)
 
 private[storage] trait FlowSenderMeta {
@@ -33,3 +38,4 @@ private[netflow] object FlowSender {
   def save(sender: FlowSender): Future[FlowSender] = doLayer { _.save(sender) }
   def delete(inet: InetAddress): Future[Unit] = doLayer { _.delete(inet) }
 }
+*/
