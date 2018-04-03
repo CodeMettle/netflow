@@ -11,7 +11,7 @@ import io.netty.buffer._
 
 import scala.util.{Failure, Try}
 
-private[netflow] abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
+abstract class TemplateMeta[T <: Template](implicit m: Manifest[T]) {
   def apply(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, flowsetId: Int, timestamp: LocalDateTime): Try[T] = Try[T] {
     val templateId = buf.getUnsignedShort(0)
     if (!(templateId < 0 || templateId > 255)) // 0-255 reserved for flowset ID
@@ -58,7 +58,7 @@ private[netflow] abstract class TemplateMeta[T <: Template](implicit m: Manifest
   def apply(sender: InetSocketAddress, id: Int, fpId: UUID, timestamp: LocalDateTime, map: Map[String, Int]): T
 }
 
-private[netflow] trait Template extends Flow[Template] {
+trait Template extends Flow[Template] {
   def versionNumber: Int
   def number: Int
   def map: Map[String, Int]
@@ -129,12 +129,12 @@ private[netflow] trait Template extends Flow[Template] {
 */
 }
 
-private[netflow] case class NetFlowV9Template(number: Int, sender: InetSocketAddress, packet: UUID, last: LocalDateTime, map: Map[String, Int]) extends Template {
+case class NetFlowV9Template(number: Int, sender: InetSocketAddress, packet: UUID, last: LocalDateTime, map: Map[String, Int]) extends Template {
   val versionNumber = 9
   lazy val id = UUIDs.timeBased()
 }
 
-private[netflow] object NetFlowV9Template extends TemplateMeta[NetFlowV9Template] {
+object NetFlowV9Template extends TemplateMeta[NetFlowV9Template] {
   def apply(sender: InetSocketAddress, id: Int, packet: UUID, timestamp: LocalDateTime, map: Map[String, Int]) =
     NetFlowV9Template(id, sender, packet, timestamp, map)
 
