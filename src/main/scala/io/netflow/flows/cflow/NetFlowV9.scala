@@ -86,7 +86,7 @@ object NetFlowV9Packet extends Logger {
           do {
             val fieldCount = buf.getUnsignedShort(templateOffset + 2)
             val templateSize = fieldCount * 4 + 4
-            if (templateOffset + templateSize < length) {
+            if (templateOffset + templateSize <= length) {
               val buffer = buf.slice(templateOffset, templateSize)
               NetFlowV9Template(sender, buffer, id, flowsetId, timestamp) match {
                 case Success(tmpl) =>
