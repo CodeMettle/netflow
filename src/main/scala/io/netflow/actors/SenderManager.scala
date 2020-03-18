@@ -24,16 +24,16 @@ private[netflow] object SenderManager {
     override def receive: Receive = normal(Map.empty)
 
     private def normal(senderActors: Map[InetAddress, ActorRef]): Receive = {
-      case ga@GetActor(_, forAddr) ⇒
+      case ga@GetActor(_, forAddr) =>
         senderActors get forAddr match {
-          case Some(act) ⇒ act ! ga
+          case Some(act) => act ! ga
 
-          case None ⇒
+          case None =>
             val conf = FlowSender(forAddr)
             val act = context.actorOf(
               SenderWorker.props(conf, templatesDAO, flowManager), validActorName(s"senderWorker-$forAddr"))
             act ! ga
-            context become normal(senderActors + (forAddr → act))
+            context become normal(senderActors + (forAddr -> act))
         }
     }
   }

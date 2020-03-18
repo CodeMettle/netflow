@@ -8,7 +8,7 @@ organization := "io.wasted"
 
 version := scala.io.Source.fromFile("version").mkString.trim
 
-scalaVersion := "2.12.5" /*"2.11.6"*/
+scalaVersion := "2.13.1" /*"2.11.6"*/
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-Xcheckinit", "-encoding", "utf8", "-feature")
 
@@ -21,8 +21,7 @@ javacOptions ++= Seq(/*"-target", "1.7", "-source", "1.7", */"-Xlint:deprecation
 libraryDependencies ++= {
   Seq(
     "io.netty" % "netty-all" % "4.1.22.Final",
-    "com.typesafe.scala-logging" %% "scala-logging" % "3.8.0",
-    "com.typesafe.akka" %% "akka-actor" % "2.5.11"
+    "com.typesafe.akka" %% "akka-actor" % "2.6.4"
   )
 }
 

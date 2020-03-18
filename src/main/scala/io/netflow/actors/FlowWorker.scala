@@ -14,8 +14,8 @@ object FlowWorker {
 
 class FlowWorker(netFlowReceiver: NetFlowReceiver) extends Actor with ActorLogging {
   override def receive: Receive = {
-    case BadDatagram(date, from) ⇒ log.warning("Bad data from {} at {}", from, date)
+    case BadDatagram(date, from) => log.warning("Bad data from {} at {}", from, date)
 
-    case SaveJob(fromAddr, packet) ⇒ netFlowReceiver.receivedPacket(fromAddr, packet)
+    case SaveJob(fromAddr, packet) => netFlowReceiver.receivedPacket(fromAddr, packet)
   }
 }

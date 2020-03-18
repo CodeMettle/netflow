@@ -4,10 +4,10 @@ import java.net.{InetAddress, NetworkInterface, SocketException, UnknownHostExce
 import java.nio.charset.StandardCharsets.UTF_8
 import java.security.MessageDigest
 import java.util.concurrent.atomic.AtomicLong
-import java.util.{Set ⇒ _, _}
+import java.util.{Set => _, _}
 
 import scala.annotation.tailrec
-import scala.collection.JavaConverters._
+import scala.jdk.CollectionConverters._
 
 /**
   * Created by steven on 3/30/2018.
@@ -46,25 +46,25 @@ object UUIDs {
           // Also return the hostname if available, it won't hurt (this does a dns lookup, it's only done once at startup)
           allIps += localhost.getCanonicalHostName
 
-          Option(InetAddress.getAllByName(localhost.getCanonicalHostName)) foreach { allMyIps ⇒
+          Option(InetAddress.getAllByName(localhost.getCanonicalHostName)) foreach { allMyIps =>
             allIps ++= allMyIps.map(_.toString)
           }
         } catch {
-          case _: UnknownHostException ⇒ // Ignore, we'll try the network interfaces anyway
+          case _: UnknownHostException => // Ignore, we'll try the network interfaces anyway
         }
 
         try {
-          Option(NetworkInterface.getNetworkInterfaces).map(_.asScala) foreach { nics ⇒
+          Option(NetworkInterface.getNetworkInterfaces).map(_.asScala) foreach { nics =>
             allIps ++= nics.flatMap(_.getInetAddresses.asScala.map(_.toString))
           }
         } catch {
-          case _: SocketException ⇒ // Ignore, if we've really got nothing so far, we'll throw an exception
+          case _: SocketException => // Ignore, if we've really got nothing so far, we'll throw an exception
         }
 
         allIps
       }
 
-      for (address ← allLocalAddresses) {
+      for (address <- allLocalAddresses) {
         update(digest, address)
       }
 
@@ -79,7 +79,7 @@ object UUIDs {
       val hash = digest.digest
 
       var node = 0L
-      (0 until 6) foreach { i ⇒
+      (0 until 6) foreach { i =>
         node |= ((0x00000000000000ffL & hash(i).toLong) << (i * 8))
       }
 

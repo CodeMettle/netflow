@@ -33,7 +33,7 @@ class NetFlowReceiverServer(netFlowV9TemplateDAO: NetFlowV9TemplateDAO, netFlowR
 
       val netFlowHandler = new NetFlowHandler(flowManager, senderManager)
 
-      NodeConfig.values.netflow.listen foreach { addr ⇒
+      NodeConfig.values.netflow.listen foreach { addr =>
         val srv = new Bootstrap
         srv.group(eventLoop)
           .localAddress(addr)

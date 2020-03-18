@@ -64,9 +64,9 @@ trait Template extends Flow[Template] {
   def map: Map[String, Int]
 
   lazy val version = "NetFlowV" + versionNumber + { if (isOptionTemplate) "Option" else "" } + "Template " + number
-  lazy val stringMap = map.mapValues(_.toString)
-  lazy val arrayMap: Array[String] = map.flatMap(b => Array(b._1, b._2.toString)).toArray
-  def objectMap = map.map(b => (b._1, b._2.toString)).toMap
+  lazy val stringMap = map.view.mapValues(_.toString)
+  lazy val arrayMap: Array[String] = map.flatMap(b => Seq(b._1, b._2.toString)).toArray
+  def objectMap = map.map(b => (b._1, b._2.toString))
 
   lazy val length: Int = map.get("length") match {
     case Some(len: Int) => len

@@ -7,10 +7,11 @@ import java.util.concurrent.TimeUnit
 import io.wasted.util.InetPrefix
 
 import akka.actor.ActorSystem
-import scala.collection.JavaConverters._
+import akka.event.Logging
 import scala.concurrent.duration._
+import scala.jdk.CollectionConverters._
 
-private[netflow] object NodeConfig extends Logger {
+private[netflow] object NodeConfig {
 
   case class ServerConfig(
     cores: Int,
@@ -82,7 +83,7 @@ private[netflow] object NodeConfig extends Logger {
   private def config(implicit system: ActorSystem): ServerConfig = {
     configs.getOrElse(system, {
       val conf = load
-      configs += (system → conf)
+      configs += (system -> conf)
       conf
     })
   }
@@ -203,7 +204,7 @@ private[netflow] object NodeConfig extends Logger {
 */
       tcp = tcp/*,
       http = http*/)
-    info(s"Using ${server.cores} of ${Runtime.getRuntime.availableProcessors()} available cores")
+    Logging(system, getClass).info(s"Using ${server.cores} of ${Runtime.getRuntime.availableProcessors()} available cores")
 /*
     storage.map { layer =>
       info("You are using the %s storage layer", layer)

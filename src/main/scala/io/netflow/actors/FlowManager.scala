@@ -22,7 +22,7 @@ private[netflow] object FlowManager {
 
     private def workerName(i: Int) = f"flowWorker$i%02d"
 
-    private val flowWorkers = (1 to NodeConfig.values(context.system).cores).map(i ⇒
+    private val flowWorkers = (1 to NodeConfig.values(context.system).cores).map(i =>
       context.actorOf(FlowWorker.props(netFlowReceiver), workerName(i)))
 
     private def sendToNextFlowWorker(flowCounter: Long)(msg: Any): Unit = {
@@ -34,8 +34,8 @@ private[netflow] object FlowManager {
     override def receive: Receive = normal(0)
 
     private def normal(flowCounter: Long): Receive = {
-      case bd: BadDatagram ⇒ sendToNextFlowWorker(flowCounter)(bd)
-      case sj: SaveJob ⇒ sendToNextFlowWorker(flowCounter)(sj)
+      case bd: BadDatagram => sendToNextFlowWorker(flowCounter)(bd)
+      case sj: SaveJob => sendToNextFlowWorker(flowCounter)(sj)
     }
   }
 }

@@ -55,34 +55,34 @@ private[netflow] class SenderWorker(config: FlowSender, templatesDAO: NetFlowV9T
   override def templateFor(flowsetId: Int): Option[cflow.NetFlowV9Template] = templateCache get flowsetId
 
   override def storeTemplate(t: cflow.NetFlowV9Template): Unit = {
-    templateCache += (t.number → t)
-    templatesDAO.persistTemplates(config.ip, templateCache.values).map(_ ⇒ TemplatesSaved) pipeTo self
+    templateCache += (t.number -> t)
+    templatesDAO.persistTemplates(config.ip, templateCache.values).map(_ => TemplatesSaved) pipeTo self
   }
 
   override def receive: Receive = init(Nil)
 
   private def init(requestingWhenReady: List[SenderManager.GetActor]): Receive = {
-    case ga: SenderManager.GetActor ⇒ context become init(ga :: requestingWhenReady)
+    case ga: SenderManager.GetActor => context become init(ga :: requestingWhenReady)
 
-    case Init ⇒ templatesDAO loadTemplates config.ip map TemplatesFetched pipeTo self
+    case Init => templatesDAO loadTemplates config.ip map TemplatesFetched pipeTo self
 
-    case Status.Failure(t) ⇒
+    case Status.Failure(t) =>
       log.error(t, "Error fetching existing templates for {}, retrying", config.ip)
       context.system.scheduler.scheduleOnce(1.second, self, Init)
 
-    case TemplatesFetched(templs) ⇒
-      templateCache = templs.map(x ⇒ x.number → x).toMap
+    case TemplatesFetched(templs) =>
+      templateCache = templs.map(x => x.number -> x).toMap
       log.info("Starting up with templates: {}", templateCache.keys.mkString(", "))
       requestingWhenReady.map(_.p).foreach(_.success(self))
       context become normal
   }
 
   private def normal: Receive = {
-    case SenderManager.GetActor(p, _) ⇒ p.success(self)
+    case SenderManager.GetActor(p, _) => p.success(self)
 
-    case TemplatesSaved ⇒ log.debug("saved templates")
+    case TemplatesSaved => log.debug("saved templates")
 
-    case Status.Failure(t) ⇒ log.error(t, "Error saving templates")
+    case Status.Failure(t) => log.error(t, "Error saving templates")
 
     case NetFlow(osender, buf) =>
 //      Shutdown.avoid()

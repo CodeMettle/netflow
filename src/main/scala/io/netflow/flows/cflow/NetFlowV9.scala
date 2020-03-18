@@ -11,6 +11,7 @@ import io.netflow.util.UUIDs
 import io.netty.buffer._
 
 import akka.actor.ActorSystem
+import akka.event.Logging
 import scala.util.{Failure, Success, Try}
 
 /**
@@ -34,7 +35,7 @@ import scala.util.{Failure, Success, Try}
  * | 20-   | others        | Unused (zero) bytes                                  |
  * *-------*---------------*------------------------------------------------------*
  */
-object NetFlowV9Packet extends Logger {
+object NetFlowV9Packet {
   trait TemplateHandler {
     def templateFor(flowsetId: Int): Option[NetFlowV9Template]
     def storeTemplate(t: NetFlowV9Template): Unit
@@ -42,6 +43,8 @@ object NetFlowV9Packet extends Logger {
 
   private val headerSize = 20
   private def parseExtraFields(implicit system: ActorSystem) = NodeConfig.values.netflow.extraFields
+
+  private def log(implicit system: ActorSystem) = Logging(system, getClass)
 
   /**
    * Parse a v9 Flow Packet
@@ -82,7 +85,7 @@ object NetFlowV9Packet extends Logger {
       flowsetId match {
         case 0 | 2 => // template flowset - 0 NetFlow v9, 2 IPFIX
           var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
-          debug("Template FlowSet (" + flowsetId + ") from " + senderIP + ":" + senderPort)
+          log.debug("Template FlowSet (" + flowsetId + ") from " + senderIP + ":" + senderPort)
           do {
             val fieldCount = buf.getUnsignedShort(templateOffset + 2)
             val templateSize = fieldCount * 4 + 4
@@ -92,7 +95,7 @@ object NetFlowV9Packet extends Logger {
                 case Success(tmpl) =>
                   templates.storeTemplate(tmpl)
                   flows += tmpl
-                case Failure(e) => warn(e.toString)
+                case Failure(e) => log.warning(e.toString)
               }
               flowsetCounter += 1
             }
@@ -100,7 +103,7 @@ object NetFlowV9Packet extends Logger {
           } while (templateOffset - packetOffset < flowsetLength)
 
         case 1 | 3 => // template flowset - 1 NetFlow v9, 3 IPFIX
-          debug("OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + ":" + senderPort)
+          log.debug("OptionTemplate FlowSet (" + flowsetId + ") from " + senderIP + ":" + senderPort)
           var templateOffset = packetOffset + 4 // add the 4 byte flowset Header
           do {
             val scopeLen = buf.getUnsignedInteger(templateOffset + 2, 2).toInt
@@ -112,7 +115,7 @@ object NetFlowV9Packet extends Logger {
                 case Success(tmpl) =>
                   templates.storeTemplate(tmpl)
                   flows += tmpl
-                case Failure(e) => warn(e.toString); e.printStackTrace()
+                case Failure(e) => log.warning(e.toString); e.printStackTrace()
               }
               flowsetCounter += 1
             }
@@ -136,13 +139,13 @@ object NetFlowV9Packet extends Logger {
 
                 flow match {
                   case Success(flow) => flows += flow
-                  case Failure(e) => warn(e.toString)
+                  case Failure(e) => log.warning(e.toString)
                 }
                 flowsetCounter += 1
                 recordOffset += tmpl.length
               }
             }
-        case a: Int => debug("Unexpected TemplateId (" + a + ")")
+        case a: Int => log.debug("Unexpected TemplateId (" + a + ")")
       }
       packetOffset += flowsetLength
     }
