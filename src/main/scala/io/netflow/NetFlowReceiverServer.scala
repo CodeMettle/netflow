@@ -1,5 +1,6 @@
 package io.netflow
 
+import java.net.InetSocketAddress
 import java.util.concurrent.atomic.AtomicReference
 
 import io.netflow.actors.{FlowManager, SenderManager}
@@ -16,7 +17,8 @@ import akka.event.Logging
 /**
   * Created by steven on 4/2/2018.
   */
-class NetFlowReceiverServer(netFlowV9TemplateDAO: NetFlowV9TemplateDAO, netFlowReceiver: NetFlowReceiver)
+class NetFlowReceiverServer(netFlowV9TemplateDAO: NetFlowV9TemplateDAO, netFlowReceiver: NetFlowReceiver,
+                            listenAddresses: Option[Seq[InetSocketAddress]] = None)
                            (implicit system: ActorSystem) {
   private val log = Logging(system, getClass)
 
@@ -33,7 +35,7 @@ class NetFlowReceiverServer(netFlowV9TemplateDAO: NetFlowV9TemplateDAO, netFlowR
 
       val netFlowHandler = new NetFlowHandler(flowManager, senderManager)
 
-      NodeConfig.values.netflow.listen foreach { addr =>
+      listenAddresses.getOrElse(NodeConfig.values.netflow.listen) foreach { addr =>
         val srv = new Bootstrap
         srv.group(eventLoop)
           .localAddress(addr)
