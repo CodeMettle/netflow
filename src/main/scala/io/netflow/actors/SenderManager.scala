@@ -7,6 +7,8 @@ import io.netflow.actors.SenderManager.{GetActor, SenderManagerActor}
 import io.netflow.storage.FlowSender
 
 import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, Props}
+import akka.pattern.gracefulStop
+import scala.concurrent.duration._
 import scala.concurrent.{Future, Promise}
 
 private[netflow] object SenderManager {
@@ -39,14 +41,15 @@ private[netflow] object SenderManager {
   }
 }
 
-private[netflow] class SenderManager(val actor: ActorRef) {
-  def this(arf: ActorRefFactory, templatesDAO: NetFlowV9TemplateDAO, flowManager: FlowManager)
-          (props: Props = SenderManagerActor.props(templatesDAO, flowManager), name: String = "senderManager") =
-    this(arf.actorOf(props, name))
+private[netflow] class SenderManager(templatesDAO: NetFlowV9TemplateDAO, flowManager: FlowManager, name: String)
+                                    (implicit arf: ActorRefFactory) {
+  private val actor = arf.actorOf(SenderManagerActor.props(templatesDAO, flowManager), name)
 
   def findActorFor(sender: InetAddress): Future[ActorRef] = {
     val p = Promise[ActorRef]()
     actor ! GetActor(p, sender)
     p.future
   }
+
+  def shutdown(): Future[Boolean] = gracefulStop(actor, 10.seconds)
 }

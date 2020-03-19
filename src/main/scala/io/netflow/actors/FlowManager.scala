@@ -7,7 +7,10 @@ import java.time.LocalDateTime
 import io.netflow.actors.FlowManager.FlowManagerActor
 import io.netflow.lib._
 
-import akka.actor.{Actor, ActorLogging, ActorRef, ActorRefFactory, Props}
+import akka.actor.{Actor, ActorLogging, ActorRefFactory, Props}
+import akka.pattern.gracefulStop
+import scala.concurrent.Future
+import scala.concurrent.duration._
 
 /**
  * This spawns just as many workers as configured
@@ -40,11 +43,11 @@ private[netflow] object FlowManager {
   }
 }
 
-private[netflow] class FlowManager(val actor: ActorRef) {
-  def this(arf: ActorRefFactory, netFlowReceiver: NetFlowReceiver)
-          (props: Props = FlowManagerActor.props(netFlowReceiver), name: String = "flowManager") =
-    this(arf.actorOf(props, name))
+private[netflow] class FlowManager(netFlowReceiver: NetFlowReceiver, name: String)(implicit arf: ActorRefFactory) {
+  private val actor = arf.actorOf(FlowManagerActor.props(netFlowReceiver), name)
 
   def bad(sender: InetSocketAddress): Unit = actor ! BadDatagram(LocalDateTime.now, sender.getAddress)
   def save(sender: InetSocketAddress, flowPacket: FlowPacket): Unit = actor ! SaveJob(sender, flowPacket)
+
+  def shutdown(): Future[Boolean] = gracefulStop(actor, 10.seconds)
 }
