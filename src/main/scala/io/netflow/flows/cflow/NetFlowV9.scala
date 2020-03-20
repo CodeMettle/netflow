@@ -15,26 +15,26 @@ import akka.event.Logging
 import scala.util.{Failure, Success, Try}
 
 /**
- * NetFlow Version 9 Packet - FlowSet DataSet
- *
- * *-------*---------------*------------------------------------------------------*
- * | Bytes | Contents      | Description                                          |
- * *-------*---------------*------------------------------------------------------*
- * | 0-1   | version       | The version of NetFlow records exported 009          |
- * *-------*---------------*------------------------------------------------------*
- * | 2-3   | count         | Number of flows exported in this packet (1-30)       |
- * *-------*---------------*------------------------------------------------------*
- * | 4-7   | SysUptime     | Current time in milli since the export device booted |
- * *-------*---------------*------------------------------------------------------*
- * | 8-11  | unix_secs     | Current count of seconds since 0000 UTC 1970         |
- * *-------*---------------*------------------------------------------------------*
- * | 12-15 | PackageSeq    | Sequence counter of total flows exported             |
- * *-------*---------------*------------------------------------------------------*
- * | 16-19 | Source ID     | engine type+engine id                                |
- * *-------*---------------*------------------------------------------------------*
- * | 20-   | others        | Unused (zero) bytes                                  |
- * *-------*---------------*------------------------------------------------------*
- */
+  * NetFlow Version 9 Packet - FlowSet DataSet
+  *
+  * *-------*---------------*------------------------------------------------------*
+  * | Bytes | Contents      | Description                                          |
+  * *-------*---------------*------------------------------------------------------*
+  * | 0-1   | version       | The version of NetFlow records exported 009          |
+  * *-------*---------------*------------------------------------------------------*
+  * | 2-3   | count         | Number of flows exported in this packet (1-30)       |
+  * *-------*---------------*------------------------------------------------------*
+  * | 4-7   | SysUptime     | Current time in milli since the export device booted |
+  * *-------*---------------*------------------------------------------------------*
+  * | 8-11  | unix_secs     | Current count of seconds since 0000 UTC 1970         |
+  * *-------*---------------*------------------------------------------------------*
+  * | 12-15 | PackageSeq    | Sequence counter of total flows exported             |
+  * *-------*---------------*------------------------------------------------------*
+  * | 16-19 | Source ID     | engine type+engine id                                |
+  * *-------*---------------*------------------------------------------------------*
+  * | 20-   | others        | Unused (zero) bytes                                  |
+  * *-------*---------------*------------------------------------------------------*
+  */
 object NetFlowV9Packet {
   trait TemplateHandler {
     def templateFor(flowsetId: Int): Option[NetFlowV9Template]
@@ -47,12 +47,14 @@ object NetFlowV9Packet {
   private def log(implicit system: ActorSystem) = Logging(system, getClass)
 
   /**
-   * Parse a v9 Flow Packet
-   *
-   * @param sender The sender's InetSocketAddress
-   * @param buf Netty ByteBuf containing the UDP Packet
-   */
-  def apply(sender: InetSocketAddress, buf: ByteBuf, templates: TemplateHandler)(implicit system: ActorSystem): Try[NetFlowV9Packet] = Try[NetFlowV9Packet] {
+    * Parse a v9 Flow Packet
+    *
+    * @param sender The sender's InetSocketAddress
+    * @param buf Netty ByteBuf containing the UDP Packet
+    */
+  def apply(sender: InetSocketAddress, buf: ByteBuf, templates: TemplateHandler)(
+      implicit system: ActorSystem
+  ): Try[NetFlowV9Packet] = Try[NetFlowV9Packet] {
     val length = buf.readableBytes()
     val version = buf.getUnsignedInteger(0, 2).toInt
     if (version != 9) return Failure(new InvalidFlowVersionException(version))
@@ -123,28 +125,30 @@ object NetFlowV9Packet {
           } while (templateOffset - packetOffset < flowsetLength)
 
         case a: Int if a > 255 => // flowset - templateId == flowsetId
-          templates.templateFor(flowsetId).
-/*
+          templates
+            .templateFor(flowsetId)
+            .
+            /*
             filter(_.isInstanceOf[NetFlowV9Template]).
             map(_.asInstanceOf[NetFlowV9Template]).
-*/
+             */
             foreach { tmpl =>
-              val option = tmpl.flowsetId == 1
-              var recordOffset = packetOffset + 4 // add the 4 byte flowset Header
-              while (recordOffset - packetOffset + tmpl.length <= flowsetLength) {
-                val buffer = buf.slice(recordOffset, tmpl.length)
-                val flow =
-                  if (option) optionRecord(sender, buffer, id, tmpl, uptime, timestamp)
-                  else dataRecord(sender, buffer, id, tmpl, uptime, timestamp)
+            val option = tmpl.flowsetId == 1
+            var recordOffset = packetOffset + 4 // add the 4 byte flowset Header
+            while (recordOffset - packetOffset + tmpl.length <= flowsetLength) {
+              val buffer = buf.slice(recordOffset, tmpl.length)
+              val flow =
+                if (option) optionRecord(sender, buffer, id, tmpl, uptime, timestamp)
+                else dataRecord(sender, buffer, id, tmpl, uptime, timestamp)
 
-                flow match {
-                  case Success(flow) => flows += flow
-                  case Failure(e) => log.warning(e.toString)
-                }
-                flowsetCounter += 1
-                recordOffset += tmpl.length
+              flow match {
+                case Success(flow) => flows += flow
+                case Failure(e)    => log.warning(e.toString)
               }
+              flowsetCounter += 1
+              recordOffset += tmpl.length
             }
+          }
         case a: Int => log.debug("Unexpected TemplateId (" + a + ")")
       }
       packetOffset += flowsetLength
@@ -154,16 +158,20 @@ object NetFlowV9Packet {
   }
 
   /**
-   * Parse a Version 9 Flow
-   *
-   * @param sender The sender's InetSocketAddress
-   * @param buf Netty ByteBuf containing the UDP Packet
-   * @param fpId FlowPacket-UUID this Flow arrived in
-   * @param template NetFlow Template for this Flow
-   * @param timestamp LocalDateTime when this flow was exported
-   */
-  def dataRecord(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9Template,
-                 uptime: Long, timestamp: LocalDateTime)(implicit system: ActorSystem) = Try[NetFlowV9Data] {
+    * Parse a Version 9 Flow
+    *
+    * @param sender The sender's InetSocketAddress
+    * @param buf Netty ByteBuf containing the UDP Packet
+    * @param fpId FlowPacket-UUID this Flow arrived in
+    * @param template NetFlow Template for this Flow
+    * @param timestamp LocalDateTime when this flow was exported
+    */
+  def dataRecord(sender: InetSocketAddress,
+                 buf: ByteBuf,
+                 fpId: UUID,
+                 template: NetFlowV9Template,
+                 uptime: Long,
+                 timestamp: LocalDateTime)(implicit system: ActorSystem) = Try[NetFlowV9Data] {
     val srcPort = buf.getUnsignedInteger(template, L4_SRC_PORT).get.toInt
     val dstPort = buf.getUnsignedInteger(template, L4_DST_PORT).get.toInt
 
@@ -173,76 +181,125 @@ object NetFlowV9Packet {
     val tos = (buf.getUnsignedInteger(template, SRC_TOS) getOrElse -1L).toInt
 
     // calculate the offset from uptime and subtract that from the timestamp
-    val start = buf.getUnsignedInteger(template, FIRST_SWITCHED).filterNot(_ == 0).
-      map(x => timestamp.minus(Duration.ofMillis(uptime - x)))
-    val stop = buf.getUnsignedInteger(template, LAST_SWITCHED).filterNot(_ == 0).
-      map(x => timestamp.minus(Duration.ofMillis(uptime - x)))
+    val start = buf
+      .getUnsignedInteger(template, FIRST_SWITCHED)
+      .filterNot(_ == 0)
+      .map(x => timestamp.minus(Duration.ofMillis(uptime - x)))
+    val stop = buf
+      .getUnsignedInteger(template, LAST_SWITCHED)
+      .filterNot(_ == 0)
+      .map(x => timestamp.minus(Duration.ofMillis(uptime - x)))
     val tcpflags = (buf.getUnsignedInteger(template, TCP_FLAGS) getOrElse -1L).toInt
 
     val srcAddress = buf.getInetAddress(template, IPV4_SRC_ADDR, IPV6_SRC_ADDR)
     val dstAddress = buf.getInetAddress(template, IPV4_DST_ADDR, IPV6_DST_ADDR)
-    val nextHop = Option(buf.getInetAddress(template, IPV4_NEXT_HOP, IPV6_NEXT_HOP)).
-      filter(_.getHostAddress != "0.0.0.0") // FIXME filter v6
+    val nextHop = Option(buf.getInetAddress(template, IPV4_NEXT_HOP, IPV6_NEXT_HOP))
+      .filter(_.getHostAddress != "0.0.0.0") // FIXME filter v6
 
     val pkts = buf.getUnsignedInteger(template, InPKTS, OutPKTS).get
     val bytes = buf.getUnsignedInteger(template, InBYTES, OutBYTES).get
     val extraFields: Map[String, Long] = if (!parseExtraFields) Map() else template.getExtraFields(buf)
-    NetFlowV9Data(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
-      srcPort, dstPort, srcAS, dstAS, pkts, bytes, proto,
-      tos, tcpflags, start, stop, srcAddress, dstAddress, nextHop, extraFields, fpId)
+    NetFlowV9Data(
+      UUIDs.timeBased(),
+      sender,
+      buf.readableBytes(),
+      template.number,
+      uptime,
+      timestamp,
+      srcPort,
+      dstPort,
+      srcAS,
+      dstAS,
+      pkts,
+      bytes,
+      proto,
+      tos,
+      tcpflags,
+      start,
+      stop,
+      srcAddress,
+      dstAddress,
+      nextHop,
+      extraFields,
+      fpId
+    )
   }
 
   /**
-   * Parse a Version 9 Option Flow
-   *
-   * @param sender The sender's InetSocketAddress
-   * @param buf Netty ByteBuf containing the UDP Packet
-   * @param fpId FlowPacket-UUID which this Flow arrived in
-   * @param template NetFlow Template for this Flow
-   * @param timestamp LocalDateTime when this flow was exported
-   */
-  def optionRecord(sender: InetSocketAddress, buf: ByteBuf, fpId: UUID, template: NetFlowV9Template,
-                   uptime: Long, timestamp: LocalDateTime) = Try[NetFlowV9Option] {
-    NetFlowV9Option(UUIDs.timeBased(), sender, buf.readableBytes(), template.number, uptime, timestamp,
-      template.getExtraFields(buf), fpId)
+    * Parse a Version 9 Option Flow
+    *
+    * @param sender The sender's InetSocketAddress
+    * @param buf Netty ByteBuf containing the UDP Packet
+    * @param fpId FlowPacket-UUID which this Flow arrived in
+    * @param template NetFlow Template for this Flow
+    * @param timestamp LocalDateTime when this flow was exported
+    */
+  def optionRecord(sender: InetSocketAddress,
+                   buf: ByteBuf,
+                   fpId: UUID,
+                   template: NetFlowV9Template,
+                   uptime: Long,
+                   timestamp: LocalDateTime) = Try[NetFlowV9Option] {
+    NetFlowV9Option(UUIDs.timeBased(),
+                    sender,
+                    buf.readableBytes(),
+                    template.number,
+                    uptime,
+                    timestamp,
+                    template.getExtraFields(buf),
+                    fpId)
   }
-
-/*
-  private def doLayer[T](f: FlowPacketMeta[NetFlowV9Packet] => Future[T]): Future[T] = NodeConfig.values.storage match {
-    case Some(StorageLayer.Cassandra) => f(storage.cassandra.NetFlowV9Packet)
-    case Some(StorageLayer.Redis) => f(storage.redis.NetFlowV9Packet)
-    case _ => Future.exception(NoBackendDefined)
-  }
-
-  def persist(fp: NetFlowV9Packet): Unit = doLayer(l => Future.value(l.persist(fp)))
-*/
 }
 
-case class NetFlowV9Packet(id: UUID, sender: InetSocketAddress, length: Int, uptime: Long,
-                           timestamp: LocalDateTime, flows: List[Flow[_]],
-                           flowSequence: Long, sourceId: Long) extends FlowPacket {
+case class NetFlowV9Packet(id: UUID,
+                           sender: InetSocketAddress,
+                           length: Int,
+                           uptime: Long,
+                           timestamp: LocalDateTime,
+                           flows: List[Flow[_]],
+                           flowSequence: Long,
+                           sourceId: Long)
+    extends FlowPacket {
   def version = "NetFlowV9 Packet"
   def count = flows.length
-//  def persist() = NetFlowV9Packet.persist(this)
 }
 
-case class NetFlowV9Data(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
-                         timestamp: LocalDateTime, srcPort: Int, dstPort: Int, srcAS: Option[Int], dstAS: Option[Int],
-                         pkts: Long, bytes: Long, proto: Int, tos: Int, tcpflags: Int,
-                         start: Option[LocalDateTime], stop: Option[LocalDateTime],
-                         srcAddress: InetAddress, dstAddress: InetAddress, nextHop: Option[InetAddress],
-                         extra: Map[String, Long], packet: UUID) extends NetFlowData[NetFlowV9Data] {
+case class NetFlowV9Data(id: UUID,
+                         sender: InetSocketAddress,
+                         length: Int,
+                         template: Int,
+                         uptime: Long,
+                         timestamp: LocalDateTime,
+                         srcPort: Int,
+                         dstPort: Int,
+                         srcAS: Option[Int],
+                         dstAS: Option[Int],
+                         pkts: Long,
+                         bytes: Long,
+                         proto: Int,
+                         tos: Int,
+                         tcpflags: Int,
+                         start: Option[LocalDateTime],
+                         stop: Option[LocalDateTime],
+                         srcAddress: InetAddress,
+                         dstAddress: InetAddress,
+                         nextHop: Option[InetAddress],
+                         extra: Map[String, Long],
+                         packet: UUID)
+    extends NetFlowData[NetFlowV9Data] {
   def version = "NetFlowV9Data " + template
 
-//  override lazy val jsonExtra = Extraction.decompose(extra).asInstanceOf[JObject]
   override lazy val stringExtra = "- Template " + template
 }
 
-case class NetFlowV9Option(id: UUID, sender: InetSocketAddress, length: Int, template: Int, uptime: Long,
-                           timestamp: LocalDateTime, extra: Map[String, Long], packet: UUID)
-  extends Flow[NetFlowV9Option] {
+case class NetFlowV9Option(id: UUID,
+                           sender: InetSocketAddress,
+                           length: Int,
+                           template: Int,
+                           uptime: Long,
+                           timestamp: LocalDateTime,
+                           extra: Map[String, Long],
+                           packet: UUID)
+    extends Flow[NetFlowV9Option] {
   def version = "NetFlowV9Option " + template
-//  override lazy val json = Serialization.write(extra)
-
 }
-
