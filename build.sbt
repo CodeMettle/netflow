@@ -25,6 +25,11 @@ libraryDependencies ++= {
   )
 }
 
+libraryDependencies ++= Seq(
+  "com.typesafe.akka" %% "akka-testkit" % "2.6.4",
+  "org.scalatest" %% "scalatest" % "3.1.1"
+).map(_ % Test)
+
 publishMavenStyle := true
 credentials += {
   def file = "credentials-" + (if (isSnapshot.value) "snapshots" else "internal")

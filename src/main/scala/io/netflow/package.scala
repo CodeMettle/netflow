@@ -8,10 +8,10 @@ import io.netty.buffer.Unpooled
 
 import akka.actor.ActorSystem
 import akka.event.Logging
+import akka.stream.KillSwitches
 import akka.stream.alpakka.udp.Datagram
 import akka.stream.alpakka.udp.scaladsl.Udp
 import akka.stream.scaladsl.{Flow, Keep}
-import akka.stream.{KillSwitch, KillSwitches}
 import akka.util.ByteString
 import scala.concurrent.Future
 import scala.util.Try
@@ -23,11 +23,11 @@ package object netflow {
 
   def Tryo[T](t: => T): Option[T] = Try(t).toOption
 
-  def netflowReceiver(
-      bindAddress: InetSocketAddress,
-      handler: Flow[FlowPacket, _, _],
-      v9TemplateDAO: NetFlowV9TemplateDAO
-  )(implicit system: ActorSystem): (Future[InetSocketAddress], KillSwitch) = {
+  def netflowReceiver(bindAddress: InetSocketAddress,
+                      handler: Flow[FlowPacket, _, _],
+                      v9TemplateDAO: NetFlowV9TemplateDAO)(implicit system: ActorSystem): Future[IngestingResult] = {
+    import system.dispatcher
+
     val unwrap = Flow[Datagram].map(d => d.remote -> d.data)
     val parse = netflowParser(unwrap, v9TemplateDAO)
 
@@ -39,7 +39,14 @@ package object netflow {
       }
       .viaMat(KillSwitches.single)(Keep.right)
 
-    Udp.bindFlow(bindAddress).joinMat(flow)(Keep.both).run()
+    val (addrF, ks) = Udp.bindFlow(bindAddress).joinMat(flow)(Keep.both).run()
+    addrF.map(a => Ingesting(a, ks)).recover {
+      case t
+          if t
+            .isInstanceOf[IllegalArgumentException] && Option(t.getMessage).exists(_.startsWith("Unable to bind to")) =>
+        BindFailure
+      case t => OtherFailure(t)
+    }
   }
 
   def netflowParser[In, Mat](
