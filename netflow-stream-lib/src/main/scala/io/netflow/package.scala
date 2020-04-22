@@ -6,6 +6,8 @@ import io.netflow.flows.cflow
 import io.netflow.lib.{FlowPacket, NodeConfig}
 import io.netty.buffer.Unpooled
 
+import com.codemettle.streamutil.{BindFailure, Ingesting, IngestingResult, OtherFailure}
+
 import akka.actor.ActorSystem
 import akka.event.Logging
 import akka.stream.KillSwitches

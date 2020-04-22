@@ -9,6 +9,8 @@ import org.scalatest.BeforeAndAfterAll
 import org.scalatest.flatspec.AsyncFlatSpecLike
 import org.scalatest.matchers.should.Matchers
 
+import com.codemettle.streamutil.{BindFailure, Ingesting, IngestingResult}
+
 import akka.actor.ActorSystem
 import akka.stream.scaladsl.Flow
 import akka.testkit.TestKit

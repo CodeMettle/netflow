@@ -1,19 +1,29 @@
 import xerial.sbt.Sonatype.GitHubHosting
 
+lazy val `stream-util-model` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.akkaStream,
+    ),
+  )
+
 lazy val `netflow-stream-lib` = project
   .settings(Settings.common)
   .settings(
     libraryDependencies ++= Seq(
-      "io.netty" % "netty-buffer" % "4.1.48.Final",
-      "com.typesafe.akka" %% "akka-actor" % "2.6.4",
-      "com.typesafe.akka" %% "akka-stream" % "2.6.4",
-      "com.lightbend.akka" %% "akka-stream-alpakka-udp" % "1.1.2"
+      Deps.nettyBuffer,
+      Deps.akkaActor,
+      Deps.akkaStream,
+      Deps.alpakkaUdp,
     ),
     libraryDependencies ++= Seq(
-      "com.typesafe.akka" %% "akka-testkit" % "2.6.4",
-      "org.scalatest" %% "scalatest" % "3.1.1"
-    ).map(_ % Test)
+      Deps.akkaTestkit,
+      Deps.scalatest,
+    ).map(_ % Test),
   )
+  .dependsOn(`stream-util-model`)
+  .aggregate(`stream-util-model`)
 
 Global / onLoad += { (s: State) =>
   "project netflow-stream-lib" :: s
