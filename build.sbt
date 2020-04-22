@@ -1,5 +1,15 @@
 import xerial.sbt.Sonatype.GitHubHosting
 
+lazy val `netflow-stream-lib` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.nettyBuffer,
+      Deps.akkaActor,
+      Deps.akkaStream,
+    ),
+  )
+
 lazy val `stream-util-model` = project
   .settings(Settings.common)
   .settings(
@@ -35,13 +45,10 @@ lazy val `udp-stream-util` = project
   )
   .dependsOn(`stream-util` % "test->test;compile->compile")
 
-lazy val `netflow-stream-lib` = project
+lazy val `netflow-receiver` = project
   .settings(Settings.common)
   .settings(
     libraryDependencies ++= Seq(
-      Deps.nettyBuffer,
-      Deps.akkaActor,
-      Deps.akkaStream,
       Deps.alpakkaUdp,
     ),
     libraryDependencies ++= Seq(
@@ -49,11 +56,11 @@ lazy val `netflow-stream-lib` = project
       Deps.scalatest,
     ).map(_ % Test),
   )
-  .dependsOn(`stream-util` % "test->test;compile->compile", `udp-stream-util`)
-  .aggregate(`stream-util-model`, `stream-util`, `udp-stream-util`)
+  .dependsOn(`stream-util` % "test->test;compile->compile", `udp-stream-util`, `netflow-stream-lib`)
+  .aggregate(`stream-util-model`, `stream-util`, `udp-stream-util`, `netflow-stream-lib`)
 
 Global / onLoad += { (s: State) =>
-  "project netflow-stream-lib" :: s
+  "project netflow-receiver" :: s
 }
 
 releaseCrossBuild in ThisBuild := true

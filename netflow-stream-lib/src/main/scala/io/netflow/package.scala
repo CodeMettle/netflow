@@ -6,14 +6,9 @@ import io.netflow.flows.cflow
 import io.netflow.lib.{FlowPacket, NodeConfig}
 import io.netty.buffer.Unpooled
 
-import com.codemettle.streamutil.{IngestingResult, UdpStreamUtil}
-
 import akka.actor.ActorSystem
 import akka.event.Logging
-import akka.stream.KillSwitches
-import akka.stream.alpakka.udp.Datagram
-import akka.stream.alpakka.udp.scaladsl.Udp
-import akka.stream.scaladsl.{Flow, Keep}
+import akka.stream.scaladsl.Flow
 import akka.util.ByteString
 import scala.concurrent.Future
 import scala.util.Try
@@ -24,25 +19,6 @@ import scala.util.Try
 package object netflow {
 
   def Tryo[T](t: => T): Option[T] = Try(t).toOption
-
-  def netflowReceiver(bindAddress: InetSocketAddress,
-                      handler: Flow[FlowPacket, _, _],
-                      v9TemplateDAO: NetFlowV9TemplateDAO)(implicit system: ActorSystem): Future[IngestingResult] = {
-    import system.dispatcher
-
-    val unwrap = Flow[Datagram].map(d => d.remote -> d.data)
-    val parse = netflowParser(unwrap, v9TemplateDAO)
-
-    val flow = parse
-      .via(handler)
-      .map(_ => Option.empty[Datagram])
-      .collect {
-        case Some(d) => d
-      }
-      .viaMat(KillSwitches.single)(Keep.right)
-
-    UdpStreamUtil.futureAndKillSwitchToResult(Udp.bindFlow(bindAddress).joinMat(flow)(Keep.both).run())
-  }
 
   def netflowParser[In, Mat](
       incomingPackets: Flow[In, (InetSocketAddress, ByteString), Mat],

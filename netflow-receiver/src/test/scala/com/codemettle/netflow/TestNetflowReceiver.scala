@@ -1,7 +1,8 @@
-package io.netflow
+package com.codemettle.netflow
 
 import java.net.InetAddress
 
+import io.netflow.NetFlowV9TemplateDAO
 import io.netflow.flows.cflow.NetFlowV9Template
 import io.netflow.lib.FlowPacket
 
@@ -24,6 +25,6 @@ class TestNetflowReceiver extends AbstractIngestingTest {
   }
 
   "NetflowReceiver" should "handle bind errors" in {
-    ingestTest(a => netflowReceiver(a, noopFlow, noopDAO))
+    ingestTest(a => NetflowReceiver(a, noopFlow, noopDAO))
   }
 }

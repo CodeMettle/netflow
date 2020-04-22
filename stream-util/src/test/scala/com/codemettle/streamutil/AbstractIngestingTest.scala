@@ -15,7 +15,7 @@ import scala.concurrent.Future
   * @author steven
   *
   */
-class AbstractIngestingTest(_system: ActorSystem)
+abstract class AbstractIngestingTest(_system: ActorSystem)
     extends TestKit(_system)
     with AsyncFlatSpecLike
     with Matchers
