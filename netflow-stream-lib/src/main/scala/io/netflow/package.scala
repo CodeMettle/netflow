@@ -6,7 +6,7 @@ import io.netflow.flows.cflow
 import io.netflow.lib.{FlowPacket, NodeConfig}
 import io.netty.buffer.Unpooled
 
-import com.codemettle.streamutil.{BindFailure, Ingesting, IngestingResult, OtherFailure}
+import com.codemettle.streamutil.{IngestingResult, UdpStreamUtil}
 
 import akka.actor.ActorSystem
 import akka.event.Logging
@@ -41,14 +41,7 @@ package object netflow {
       }
       .viaMat(KillSwitches.single)(Keep.right)
 
-    val (addrF, ks) = Udp.bindFlow(bindAddress).joinMat(flow)(Keep.both).run()
-    addrF.map(a => Ingesting(a, ks)).recover {
-      case t
-          if t
-            .isInstanceOf[IllegalArgumentException] && Option(t.getMessage).exists(_.startsWith("Unable to bind to")) =>
-        BindFailure
-      case t => OtherFailure(t)
-    }
+    UdpStreamUtil.futureAndKillSwitchToResult(Udp.bindFlow(bindAddress).joinMat(flow)(Keep.both).run())
   }
 
   def netflowParser[In, Mat](

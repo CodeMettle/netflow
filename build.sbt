@@ -8,6 +8,33 @@ lazy val `stream-util-model` = project
     ),
   )
 
+lazy val `stream-util` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.akkaStream,
+    ),
+    libraryDependencies ++= Seq(
+      Deps.akkaTestkit,
+      Deps.scalatest,
+    ).map(_ % Test),
+  )
+  .dependsOn(`stream-util-model`)
+
+lazy val `udp-stream-util` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.akkaStream,
+      Deps.alpakkaUdp,
+    ),
+    libraryDependencies ++= Seq(
+      Deps.akkaTestkit,
+      Deps.scalatest,
+    ).map(_ % Test),
+  )
+  .dependsOn(`stream-util` % "test->test;compile->compile")
+
 lazy val `netflow-stream-lib` = project
   .settings(Settings.common)
   .settings(
@@ -22,8 +49,8 @@ lazy val `netflow-stream-lib` = project
       Deps.scalatest,
     ).map(_ % Test),
   )
-  .dependsOn(`stream-util-model`)
-  .aggregate(`stream-util-model`)
+  .dependsOn(`stream-util` % "test->test;compile->compile", `udp-stream-util`)
+  .aggregate(`stream-util-model`, `stream-util`, `udp-stream-util`)
 
 Global / onLoad += { (s: State) =>
   "project netflow-stream-lib" :: s
