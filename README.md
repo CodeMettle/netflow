@@ -1,3 +1,79 @@
+# netflow-receiver
+
+A fork of [wasted/netflow](https://github.com/wasted/netflow) to provide netflow parsing
+as a library on top of [akka-stream](https://doc.akka.io/docs/akka/current/stream/).
+The original code was a standalone service using Netty. Since so much code was dependent on
+`netty-buffer`, it's still a dependency, but the network feature is now built on
+[Alpakka/UDP](https://doc.akka.io/docs/alpakka/current/udp.html).
+
+[![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.codemettle/netflow-receiver_2.13/badge.svg)](https://maven-badges.herokuapp.com/maven-central/com.codemettle/netflow-receiver_2.13)
+
+-------
+
+#### netflow-stream-lib
+
+Include in build:
+
+```scala
+libraryDependencies += "com.codemettle" %% "netflow-stream-lib" % "(version)"
+```
+
+Get a flow that parses tuples of `InetSocketAddress`es (representing the netflow source) and
+`akka.util.ByteString`s as `NetflowPacket`s:
+
+```scala
+package io.netflow {
+  def netflowParser[In, Mat](
+      incomingPackets: Flow[In, (InetSocketAddress, ByteString), Mat],
+      v9TemplateDAO: NetFlowV9TemplateDAO
+  )(implicit system: ActorSystem): Flow[In, FlowPacket, Mat]
+}
+```
+
+--------
+
+#### netflow-receiver
+
+Include in build:
+
+```scala
+libraryDependencies += "com.codemettle" %% "netflow-receiver" % "(version)"
+```
+
+Start a listener bound to the given interface / port which parses incoming UDP netflow
+packets and passes them along to the given flow:
+
+```scala
+import java.net.InetSocketAddress
+
+import io.netflow.lib.FlowPacket
+import io.netflow.NetFlowV9TemplateDAO
+
+import com.codemettle.netflow.NetflowReceiver
+import com.codemettle.streamutil.IngestingResult
+
+implicit val system: ActorSystem = ???
+val bindAddress: InetSocketAddress = ???
+val packetHandler: Flow[FlowPacket, _, _] = ???
+val templateDAO: NetFlowV9TemplateDAO = ???
+
+val resultF: Future[IngestingResult] = NetflowReceiver(bindAddress, packetHandler, templateDAO)
+
+// IngestingResult is one of:
+// case object BindFailure
+// case class OtherFailure(error: Throwable)
+// case class Ingesting(boundTo: InetSocketAddress, ks: KillSwitch)
+//
+// Assuming everything was successful, the Ingesting.boundTo address will inform the caller
+//  of what port was bound if a random (0) port was specified, and Ingesting.ks allows the
+//  stream to be terminated.
+```
+
+--------
+
+Original README
+===============
+
 ![netflow.io](http://netflow.io/images/github/netflow.png)
 
 =======
