@@ -1,18 +1,14 @@
+import xerial.sbt.Sonatype.GitHubHosting
+
 name := "netflow-stream-lib"
 
-organization := "io.wasted"
+organization := "com.codemettle"
 
-version := scala.io.Source.fromFile("version").mkString.trim
+crossScalaVersions := Seq("2.13.1", "2.12.11")
 
-scalaVersion := "2.13.1"
+scalaVersion := crossScalaVersions.value.head
 
 scalacOptions ++= Seq("-unchecked", "-deprecation", "-Xcheckinit", "-encoding", "utf8", "-feature")
-
-scalacOptions ++= Seq("-language:higherKinds",
-                      "-language:postfixOps",
-                      "-language:implicitConversions",
-                      "-language:reflectiveCalls",
-                      "-language:existentials")
 
 javacOptions ++= Seq("-Xlint:deprecation")
 
@@ -30,22 +26,14 @@ libraryDependencies ++= Seq(
   "org.scalatest" %% "scalatest" % "3.1.1"
 ).map(_ % Test)
 
+releaseCrossBuild := true
+
+releasePublishArtifactsAction := PgpKeys.publishSigned.value
+
 publishMavenStyle := true
-credentials += {
-  def file = "credentials-" + (if (isSnapshot.value) "snapshots" else "internal")
 
-  Credentials(Path.userHome / ".m2" / file)
-}
-publishTo := {
-  def path = "/repository/" + (if (isSnapshot.value) "snapshots" else "internal")
+licenses := Seq("APL2" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"))
 
-  Some("CodeMettle Maven" at s"http://maven.codemettle.com$path")
-}
+sonatypeProjectHosting := Some(GitHubHosting("CodeMettle", "netflow", "steven@codemettle.com"))
 
-buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion) ++ Seq[BuildInfoKey](
-  "commit" -> ("git rev-parse HEAD" !!).trim
-)
-
-buildInfoPackage := "io.netflow.lib"
-
-enablePlugins(BuildInfoPlugin)
+publishTo := sonatypePublishTo.value
