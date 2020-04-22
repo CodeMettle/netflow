@@ -1,63 +1,76 @@
-import scalariform.formatter.preferences._
+import xerial.sbt.Sonatype.GitHubHosting
 
-name := "netflow"
-
-organization := "io.wasted"
-
-version := scala.io.Source.fromFile("version").mkString.trim
-
-scalaVersion := "2.11.6"
-
-scalacOptions ++= Seq("-unchecked", "-deprecation", "-Yinline-warnings", "-Xcheckinit", "-encoding", "utf8", "-feature")
-
-scalacOptions ++= Seq("-language:higherKinds", "-language:postfixOps", "-language:implicitConversions", "-language:reflectiveCalls", "-language:existentials")
-
-javacOptions ++= Seq("-target", "1.7", "-source", "1.7", "-Xlint:deprecation")
-
-mainClass in assembly := Some("io.netflow.Node")
-
-libraryDependencies ++= {
-  val wastedVersion = "0.9.5"
-  val liftVersion = "2.6.2"
-  val phantomVersion = "1.5.0"
-  Seq(
-    "net.liftweb" %% "lift-json" % liftVersion,
-    "io.wasted" %% "wasted-util" % wastedVersion,
-    "com.twitter" %% "finagle-redis" % "6.25.0",
-    "com.websudos"  %% "phantom-dsl" % phantomVersion,
-    "org.xerial.snappy" % "snappy-java" % "1.1.1.3",
-    "joda-time" % "joda-time" % "2.7",
-		"org.codehaus.janino" % "janino" % "2.6.1"
+lazy val `netflow-stream-lib` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.nettyBuffer,
+      Deps.akkaActor,
+      Deps.akkaStream,
+    ),
   )
+
+lazy val `stream-util-model` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.akkaStream,
+    ),
+  )
+
+lazy val `stream-util` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.akkaStream,
+    ),
+    libraryDependencies ++= Seq(
+      Deps.akkaTestkit,
+      Deps.scalatest,
+    ).map(_ % Test),
+  )
+  .dependsOn(`stream-util-model`)
+
+lazy val `udp-stream-util` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.akkaStream,
+      Deps.alpakkaUdp,
+    ),
+    libraryDependencies ++= Seq(
+      Deps.akkaTestkit,
+      Deps.scalatest,
+    ).map(_ % Test),
+  )
+  .dependsOn(`stream-util` % "test->test;compile->compile")
+
+lazy val `netflow-receiver` = project
+  .settings(Settings.common)
+  .settings(
+    libraryDependencies ++= Seq(
+      Deps.alpakkaUdp,
+    ),
+    libraryDependencies ++= Seq(
+      Deps.akkaTestkit,
+      Deps.scalatest,
+    ).map(_ % Test),
+  )
+  .dependsOn(`stream-util` % "test->test;compile->compile", `udp-stream-util`, `netflow-stream-lib`)
+  .aggregate(`stream-util-model`, `stream-util`, `udp-stream-util`, `netflow-stream-lib`)
+
+Global / onLoad += { (s: State) =>
+  "project netflow-receiver" :: s
 }
 
-publishTo := Some("wasted.io/repo" at "http://repo.wasted.io/mvn")
+releaseCrossBuild in ThisBuild := true
 
-scalariformSettings
+releasePublishArtifactsAction in ThisBuild := PgpKeys.publishSigned.value
 
-ScalariformKeys.preferences := FormattingPreferences().setPreference(AlignParameters, true)
+publishMavenStyle in ThisBuild := true
 
-buildInfoSettings
+licenses in ThisBuild := Seq("APL2" -> url("http://www.apache.org/licenses/LICENSE-2.0.txt"))
 
-buildInfoKeys := Seq[BuildInfoKey](name, version, scalaVersion, sbtVersion) ++ Seq[BuildInfoKey](
-  "commit" -> ("git rev-parse HEAD"!!).trim
-)
+sonatypeProjectHosting in ThisBuild := Some(GitHubHosting("CodeMettle", "netflow", "steven@codemettle.com"))
 
-sourceGenerators in Compile <+= buildInfo
-
-buildInfoPackage := "io.netflow.lib"
-
-addArtifact(Artifact("netflow", "server"), assembly)
-
-net.virtualvoid.sbt.graph.Plugin.graphSettings
-
-resolvers ++= Seq(
-  "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository",
-  "wasted.io/repo" at "http://repo.wasted.io/mvn",
-  "Websudos releases" at "http://maven.websudos.co.uk/ext-release-local",
-  "Sonatype Snapshots" at "https://oss.sonatype.org/content/repositories/snapshots/",
-  "Twitter's Repository" at "http://maven.twttr.com/",
-  "Typesafe Ivy Repo" at "http://repo.typesafe.com/typesafe/ivy-releases",
-  "Java.net Maven2 Repository" at "http://download.java.net/maven/2/"
-)
-
+publishTo in ThisBuild := sonatypePublishTo.value
